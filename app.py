@@ -301,6 +301,7 @@ with gr.Blocks(title="PyBot 中文版") as demo:
             show_en = gr.Checkbox(label="在回复下方显示 PyBot 英文原文", value=False)
         with gr.Column(scale=2):
             status = gr.Markdown(_status())
+            refresh = gr.Button("刷新状态")
             gr.Markdown(
                 "### 这一轮发生了什么\n"
                 "1. 你的中文 → 350M 译成英文\n"
@@ -324,8 +325,9 @@ with gr.Blocks(title="PyBot 中文版") as demo:
     inputs = [msg, chatbot, state, show_en]
     outputs = [msg, chatbot, state, status]
     msg.submit(chat, inputs, outputs, api_visibility="private")
-    send.click(chat, inputs, outputs, api_visibility="private")
+    send.click(chat, inputs, outputs, api_name="ask")
     clear.click(reset, None, [chatbot, state, status], api_visibility="private")
+    refresh.click(lambda: _status(), None, status, api_visibility="private")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,14 @@
-"""PyBot 中文版：英文规则引擎 + LFM2.5-350M 中英互译。
+"""PyBot 中文版：英文规则引擎 + 中英互译。
 
 流程：
-    用户中文 → 350M 译成英文 → PyBot 规则引擎回答 → 350M 译回中文
+    用户中文 → 译成英文 → PyBot 规则引擎回答 → 译回中文
 
-PyBot 本体不含权重、不训练，全部是 if/else、正则和查表；350M 只做翻译，
-不参与“怎么回答”的决策。翻译在 2 vCPU 上较慢，所以每轮可能需要几十秒。
+PyBot 本体不含权重、不训练，全部是 if/else、正则和查表；翻译模型只做翻译，
+不参与“怎么回答”的决策。
+
+翻译引擎有两个：
+- Opus-MT（默认）：Helsinki-NLP 的专用翻译模型，小、快、长句稳定。
+- LFM2.5-350M（实验）：短句可用，长回答容易跑偏，仅作对照。
 """
 import os
 import re
@@ -16,42 +20,74 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 import torch
 import gradio as gr
 from modelscope import snapshot_download
+from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer
 
-REPO_ID = "LiquidAI/LFM2.5-350M"
+LFM_ID = "LiquidAI/LFM2.5-350M"
+OPUS_ID = {
+    "en2zh": "Helsinki-NLP/opus-mt-en-zh",
+    "zh2en": "Helsinki-NLP/opus-mt-zh-en",
+}
 MAX_INPUT_TOKENS = 4096
 
-# --- 模型 -------------------------------------------------------------------
-_state = {"model": None, "tokenizer": None, "error": None}
-_ready = threading.Event()
+# --- Opus-MT ----------------------------------------------------------------
+_opus = {"en2zh": None, "zh2en": None, "tokenizer": {}, "error": None}
+_opus_ready = threading.Event()
 
 
-def _warm_model():
+def _warm_opus():
     try:
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        for direction, repo in OPUS_ID.items():
+            path = snapshot_download(repo)
+            _opus[direction] = AutoModelForSeq2SeqLM.from_pretrained(path)
+            _opus[direction].eval()
+            _opus["tokenizer"][direction] = AutoTokenizer.from_pretrained(path)
+    except Exception as exc:  # noqa: BLE001 - 起不来也要能回话
+        _opus["error"] = f"{type(exc).__name__}: {exc}"
+    finally:
+        _opus_ready.set()
 
-        path = snapshot_download(REPO_ID)
+
+threading.Thread(target=_warm_opus, daemon=True).start()
+
+
+def _get_opus(direction):
+    if not _opus_ready.wait(timeout=600):
+        raise RuntimeError("翻译模型仍在下载，请稍后重试")
+    if _opus["error"]:
+        raise RuntimeError(f"Opus-MT 加载失败：{_opus['error']}")
+    return _opus[direction], _opus["tokenizer"][direction]
+
+
+# --- LFM2.5（实验） ----------------------------------------------------------
+_lfm = {"model": None, "tokenizer": None, "error": None}
+_lfm_ready = threading.Event()
+
+
+def _warm_lfm():
+    try:
+        path = snapshot_download(LFM_ID)
         tokenizer = AutoTokenizer.from_pretrained(path)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         model = AutoModelForCausalLM.from_pretrained(path, dtype=torch.float32)
         model.eval()
-        _state["model"] = model
-        _state["tokenizer"] = tokenizer
-    except Exception as exc:  # noqa: BLE001 - 起不来也要能回话
-        _state["error"] = f"{type(exc).__name__}: {exc}"
+        _lfm["model"] = model
+        _lfm["tokenizer"] = tokenizer
+    except Exception as exc:  # noqa: BLE001
+        _lfm["error"] = f"{type(exc).__name__}: {exc}"
     finally:
-        _ready.set()
+        _lfm_ready.set()
 
 
-threading.Thread(target=_warm_model, daemon=True).start()
+threading.Thread(target=_warm_lfm, daemon=True).start()
 
 
-def _get_model():
-    if not _ready.wait(timeout=600):
-        raise RuntimeError("模型权重仍在下载，请稍后重试")
-    if _state["error"]:
-        raise RuntimeError(f"权重加载失败：{_state['error']}")
-    return _state["model"], _state["tokenizer"]
+def _get_lfm():
+    if not _lfm_ready.wait(timeout=600):
+        raise RuntimeError("LFM2.5 仍在下载，请稍后重试")
+    if _lfm["error"]:
+        raise RuntimeError(f"LFM2.5 加载失败：{_lfm['error']}")
+    return _lfm["model"], _lfm["tokenizer"]
 
 
 # --- PyBot ------------------------------------------------------------------
@@ -79,26 +115,6 @@ def _get_pybot():
     if _pybot["error"]:
         raise RuntimeError(f"PyBot 加载失败：{_pybot['error']}")
     return _pybot["runtime"]
-
-
-# --- 生成 -------------------------------------------------------------------
-def _generate(messages, max_new_tokens=288):
-    model, tokenizer = _get_model()
-    inputs = tokenizer.apply_chat_template(messages, return_tensors="pt", add_generation_prompt=True)
-    input_ids = inputs.input_ids if hasattr(inputs, "input_ids") else inputs
-    if input_ids.shape[1] > MAX_INPUT_TOKENS:
-        raise RuntimeError(f"输入超过 {MAX_INPUT_TOKENS} tokens")
-    with torch.no_grad():
-        output = model.generate(
-            input_ids,
-            max_new_tokens=int(max_new_tokens),
-            temperature=0.2,
-            top_p=0.9,
-            repetition_penalty=1.05,
-            do_sample=True,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-    return tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
 
 
 # --- 翻译 -------------------------------------------------------------------
@@ -131,6 +147,7 @@ _CACHE_MAX = 300
 
 def _clean(text):
     text = (text or "").strip()
+    text = re.sub(r">>[A-Za-z_]+<<", "", text)
     text = re.sub(r"^(English|Chinese|Translation|翻译)\s*[:：]\s*", "", text, flags=re.I)
     for label in ("English:", "中文：", "中文:"):
         if label in text:
@@ -148,12 +165,12 @@ def _looks_right(text, direction):
     return len(CJK.findall(text)) >= 2
 
 
-def _chunks(text, limit=420):
-    """按句子切成不超过 limit 字符的块，避免 350M 一次翻太长。"""
+def _chunks(text, limit=400):
+    """按句号/逗号切成不超过 limit 字符的块，专用翻译模型对长句更稳。"""
     text = (text or "").strip()
     if len(text) <= limit:
         return [text] if text else []
-    pieces = [p for p in re.split(r"(?<=[.!?。！？])\s*", text) if p]
+    pieces = [p for p in re.split(r"(?<=[.!?。！？;；,])\s*", text) if p]
     out, cur = [], ""
     for piece in pieces:
         while len(piece) > limit:
@@ -169,13 +186,45 @@ def _chunks(text, limit=420):
     return out
 
 
-def _translate_chunk(text, direction):
+def _opus_chunk(text, direction):
+    model, tokenizer = _get_opus(direction)
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+    with torch.no_grad():
+        output = model.generate(
+            **inputs,
+            max_new_tokens=512,
+            num_beams=4,
+            early_stopping=True,
+        )
+    return tokenizer.decode(output[0], skip_special_tokens=True)
+
+
+def _lfm_generate(messages, max_new_tokens=288):
+    model, tokenizer = _get_lfm()
+    inputs = tokenizer.apply_chat_template(messages, return_tensors="pt", add_generation_prompt=True)
+    input_ids = inputs.input_ids if hasattr(inputs, "input_ids") else inputs
+    if input_ids.shape[1] > MAX_INPUT_TOKENS:
+        raise RuntimeError(f"输入超过 {MAX_INPUT_TOKENS} tokens")
+    with torch.no_grad():
+        output = model.generate(
+            input_ids,
+            max_new_tokens=int(max_new_tokens),
+            temperature=0.2,
+            top_p=0.9,
+            repetition_penalty=1.05,
+            do_sample=True,
+            pad_token_id=tokenizer.eos_token_id,
+        )
+    return tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
+
+
+def _lfm_chunk(text, direction):
     system = ZH2EN_SYSTEM if direction == "zh2en" else EN2ZH_SYSTEM
     few = ZH2EN_FEWSHOT if direction == "zh2en" else EN2ZH_FEWSHOT
     prompts = [few.format(text=text), SIMPLE[direction].format(text=text)]
     for prompt in prompts:
         try:
-            raw = _generate(
+            raw = _lfm_generate(
                 [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
                 max_new_tokens=288,
             )
@@ -187,18 +236,31 @@ def _translate_chunk(text, direction):
     return None
 
 
-def translate(text, direction):
+def _translate_chunk(text, direction, engine):
+    order = ["opus", "lfm"] if engine != "lfm" else ["lfm", "opus"]
+    for name in order:
+        try:
+            out = _opus_chunk(text, direction) if name == "opus" else _lfm_chunk(text, direction)
+        except Exception:  # noqa: BLE001 - 引擎不可用就换另一个
+            continue
+        out = _clean(out)
+        if _looks_right(out, direction):
+            return out
+    return None
+
+
+def translate(text, direction, engine="opus"):
     """返回译文；失败返回 None。结果带缓存，重复句子不再生成。"""
     text = (text or "").strip()
     if not text:
         return ""
-    key = (direction, text)
+    key = (engine, direction, text)
     with _CACHE_LOCK:
         if key in _CACHE:
             return _CACHE[key]
     parts = []
     for chunk in _chunks(text):
-        out = _translate_chunk(chunk, direction)
+        out = _translate_chunk(chunk, direction, engine)
         if out is None:
             # 失败不缓存：模型可能只是还没加载好，下次重试应当有机会成功
             return None
@@ -212,19 +274,20 @@ def translate(text, direction):
 
 
 # --- 对话 -------------------------------------------------------------------
-def chat(message, history, memory, show_en):
+def chat(message, history, memory, show_en, engine):
     history = list(history or [])
     memory = memory if isinstance(memory, dict) else {}
     text = (message or "").strip()
     if not text:
         return "", history, memory, _status("等待输入")
+    engine_key = "lfm" if str(engine).startswith("LFM") else "opus"
 
     user_is_zh = bool(CJK.search(text))
     note = ""
     try:
         if user_is_zh:
             zh_user = text
-            en_user = translate(text, "zh2en")
+            en_user = translate(text, "zh2en", engine_key)
             if not en_user:
                 reply = "这句中文没能翻译成英文，PyBot 读不到。请换一种说法，或把句子缩短一点。"
                 history += [
@@ -234,14 +297,14 @@ def chat(message, history, memory, show_en):
                 return "", history, memory, _status("中→英失败")
         else:
             en_user = text
-            zh_user = translate(text, "en2zh")
+            zh_user = translate(text, "en2zh", engine_key)
             if not zh_user:
                 zh_user = text
                 note = "（原句中文翻译失败，显示英文）"
 
         result = _get_pybot().turn(en_user, memory)
         en_reply = str(result.get("reply") or "")
-        zh_reply = translate(en_reply, "en2zh")
+        zh_reply = translate(en_reply, "en2zh", engine_key)
         if not zh_reply:
             zh_reply = "（翻译失败，以下为 PyBot 英文原文）\n\n" + en_reply
             note = (note + " 回复翻译失败。").strip()
@@ -258,7 +321,7 @@ def chat(message, history, memory, show_en):
         step = "中→英" if user_is_zh else "英→中"
         status = (
             f"**模块**：`{result.get('module')}`　**流程**：{step} → PyBot → 英→中"
-            f"　**PyBot 英文输入**：{en_user[:120]}"
+            f"　**引擎**：{engine}　**PyBot 英文输入**：{en_user[:120]}"
         )
         return "", history, memory, status
     except Exception as exc:  # noqa: BLE001 - 一轮失败不能让页面 500
@@ -270,9 +333,10 @@ def chat(message, history, memory, show_en):
 
 
 def _status(note="就绪"):
-    model = "加载失败" if _state["error"] else ("就绪" if _ready.is_set() else "下载/加载中")
-    bot = "加载失败" if _pybot["error"] else ("就绪" if _pybot_ready.is_set() else "加载中")
-    return f"**{note}**　模型：{model}　PyBot：{bot}"
+    opus = "失败" if _opus["error"] else ("就绪" if _opus_ready.is_set() else "加载中")
+    lfm = "失败" if _lfm["error"] else ("就绪" if _lfm_ready.is_set() else "加载中")
+    bot = "失败" if _pybot["error"] else ("就绪" if _pybot_ready.is_set() else "加载中")
+    return f"**{note}**　Opus-MT：{opus}　LFM2.5：{lfm}　PyBot：{bot}"
 
 
 def reset():
@@ -283,13 +347,13 @@ with gr.Blocks(title="PyBot 中文版") as demo:
     gr.Markdown(
         "# PyBot 中文版\n"
         "PyBot 是一个**没有权重、没有训练**的英文规则聊天机器人：全部由规则、正则和查表组成。"
-        "这里用 `LiquidAI/LFM2.5-350M` 做中英互译，所以你说中文、它答中文，"
-        "但真正决定“怎么回答”的仍然是 PyBot 的规则。\n\n"
-        "**注意**：翻译在 2 vCPU 上较慢，每轮可能需要几十秒；首轮还要等模型下载。"
+        "这里把你说的话译成英文交给 PyBot，再把回答译回中文。\n\n"
+        "**翻译引擎**：默认 `Opus-MT`（专用翻译模型，长句稳定）；`LFM2.5-350M` 仅作实验对照，"
+        "短句可用、长回答容易跑偏。翻译在 2 vCPU 上仍需几秒到几十秒，首轮要等模型下载。"
     )
     with gr.Row():
         with gr.Column(scale=3):
-            chatbot = gr.Chatbot(label="对话（中文）", height=460)
+            chatbot = gr.Chatbot(label="对话（中文）", height=430)
             msg = gr.Textbox(
                 label="你说（中文或英文）",
                 placeholder="例如：水壶里的水垢怎么除？ / How long should I boil an egg?",
@@ -298,16 +362,22 @@ with gr.Blocks(title="PyBot 中文版") as demo:
             with gr.Row():
                 send = gr.Button("发送", variant="primary")
                 clear = gr.Button("清空")
-            show_en = gr.Checkbox(label="在回复下方显示 PyBot 英文原文", value=False)
+            with gr.Row():
+                show_en = gr.Checkbox(label="显示 PyBot 英文原文", value=False)
+                engine = gr.Radio(
+                    choices=["Opus-MT（推荐）", "LFM2.5（实验）"],
+                    value="Opus-MT（推荐）",
+                    label="翻译引擎",
+                )
         with gr.Column(scale=2):
             status = gr.Markdown(_status())
             refresh = gr.Button("刷新状态")
             gr.Markdown(
                 "### 这一轮发生了什么\n"
-                "1. 你的中文 → 350M 译成英文\n"
+                "1. 你的中文 → 译成英文\n"
                 "2. PyBot 规则引擎用英文回答\n"
-                "3. 英文回答 → 350M 译回中文\n\n"
-                "翻译失败时会自动回退：中文没译出来就不送 PyBot；"
+                "3. 英文回答 → 译回中文\n\n"
+                "翻译失败会自动回退：中文没译出来就不送 PyBot；"
                 "回答没译出来就显示英文原文。"
             )
             gr.Examples(
@@ -322,7 +392,7 @@ with gr.Blocks(title="PyBot 中文版") as demo:
             )
 
     state = gr.State({})
-    inputs = [msg, chatbot, state, show_en]
+    inputs = [msg, chatbot, state, show_en, engine]
     outputs = [msg, chatbot, state, status]
     msg.submit(chat, inputs, outputs, api_visibility="private")
     send.click(chat, inputs, outputs, api_name="ask")

@@ -6,4 +6,6 @@
 transformers>=5.0
 tokenizers>=0.22
 modelscope>=1.20
+sentencepiece>=0.2
+sacremoses>=0.1
 # torch / gradio 由基础镜像和创空间 SDK 提供，不重复安装

@@ -1,25 +1,41 @@
 ---
-# 详细文档见https://modelscope.cn/docs/%E5%88%9B%E7%A9%BA%E9%97%B4%E5%8D%A1%E7%89%87
-domain: #领域：cv/nlp/audio/multi-modal/AutoML
-# - cv
-tags: #自定义标签
--
-datasets: #关联数据集
-  evaluation:
-  #- iic/ICDAR13_HCTR_Dataset
-  test:
-  #- iic/MTWI
-  train:
-  #- iic/SIBR
-models: #关联模型
-#- iic/ofa_ocr-recognition_general_base_zh
-
-## 启动文件(若SDK为Gradio/Streamlit，默认为app.py, 若为Static HTML, 默认为index.html)
-# deployspec:
-#   entry_file: app.py
+title: PyBot 中文版
+emoji: 🤖
+colorFrom: yellow
+colorTo: gray
+sdk: gradio
+sdk_version: 6.17.3
+app_file: app.py
+pinned: false
 license: apache-2.0
+short_description: PyBot 纯规则聊天机器人 + LFM2.5-350M 中英互译
 ---
-#### Clone with HTTP
-```bash
- git clone https://www.modelscope.cn/studios/feihukuai/PyBot-ZH.git
+
+# PyBot 中文版
+
+PyBot 是一个**没有权重、没有训练**的英文聊天机器人：528 个 Python 文件、约 64 万行代码，全部由 if/else、正则和查表组成。上游项目：[huggingface/pybot](https://github.com/huggingface/pybot)，Apache-2.0。
+
+这个创空间在 PyBot 外面加了一层翻译：
+
 ```
+用户中文 → LFM2.5-350M 译成英文 → PyBot 规则引擎回答 → LFM2.5-350M 译回中文
+```
+
+- 真正决定“怎么回答”的是 PyBot 的规则，模型只做翻译，不参与知识或策略。
+- 你说英文也可以：页面会先把你的话译成中文显示，再把英文原句交给 PyBot。
+- 翻译在 2 vCPU 上较慢，每轮可能需要几十秒；首轮还要等 676 MB 权重下载。
+- 翻译失败会自动回退：中文没译成英文就不送 PyBot；英文回答没译成中文就显示英文原文。
+
+## 本空间内容
+
+| 路径 | 内容 |
+|---|---|
+| `app.py` | Gradio 界面、模型加载、中英互译管线 |
+| `bot/` | PyBot 本体，原样保留，未改回答逻辑 |
+| `requirements.txt` | transformers / tokenizers / modelscope（torch、gradio 由镜像提供） |
+
+## 限制
+
+- 350M 的翻译质量有限，长句、俚语、专有名词可能译错；这是模型能力问题，不是 PyBot 规则问题。
+- 免费 CPU 实例单并发，慢请求会排队。
+- PyBot 是通用英文聊天机器人，不是游戏 NPC；NPC 版本在另一个创空间 `feihukuai/LFM2.5-350M` 的第二个 Tab。

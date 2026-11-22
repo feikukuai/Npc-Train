@@ -273,8 +273,113 @@ def translate(text, direction, engine="opus"):
     return result
 
 
+# --- LFM2.5 润色 -------------------------------------------------------------
+POLISH_SYSTEM = (
+    "你是中文编辑。根据对话上下文，把待润色的中文回答改得自然、通顺、贴题。"
+    "只输出改写后的中文回答，不要解释。"
+)
+POLISH_TEMPLATE = (
+    "要求：\n"
+    "1. 只输出改写后的中文回答，不要解释。\n"
+    "2. 保留原意，不新增事实、数字、人名、地点。\n"
+    "3. 如果原回答已经合适，原样输出。\n"
+    "4. 不要提 PyBot、翻译、系统、规则。\n\n"
+    "[最近对话]\n{context}\n\n"
+    "[本轮用户]\n{user}\n\n"
+    "[PyBot 英文原答]\n{en_reply}\n\n"
+    "[待润色回答]\n{draft}\n\n"
+    "改写："
+)
+_POLISH_CACHE = {}
+_POLISH_LOCK = threading.Lock()
+_POLISH_MAX = 300
+
+
+def _text_of(content):
+    if isinstance(content, list):
+        return "".join(x.get("text", "") for x in content if isinstance(x, dict))
+    return str(content or "")
+
+
+def _context_text(history):
+    lines = []
+    for message in (history or [])[-4:]:
+        role = "用户" if message.get("role") == "user" else "助手"
+        text = _text_of(message.get("content")).strip()
+        if text:
+            lines.append(f"{role}：{text[:240]}")
+    return "\n".join(lines) or "（无）"
+
+
+def _numbers(text):
+    return set(re.findall(r"\d+(?:\.\d+)?", text or ""))
+
+
+def _clean_polish(text):
+    text = (text or "").strip()
+    text = re.sub(r"^(改写|润色|修改|优化)(后)?(的)?(中文|句子|版本)?\s*[:：]\s*", "", text)
+    for label in ("改写：", "润色：", "中文："):
+        if label in text:
+            text = text.rsplit(label, 1)[-1].strip()
+    return text.strip().strip('"“”\'')
+
+
+def _polish_ok(out, original):
+    if not out or len(out) < 2:
+        return False
+    if len(CJK.findall(out)) < 2:
+        return False
+    ratio = len(out) / max(len(original), 1)
+    if ratio < 0.5 or ratio > 2.0:
+        return False
+    if not _numbers(out) <= _numbers(original):
+        return False
+    if ("原文" in out or "改写" in out or "PyBot" in out) and not any(
+        word in original for word in ("原文", "改写", "PyBot")
+    ):
+        return False
+    return True
+
+
+def polish_zh(draft, history=None, user_text="", en_reply=""):
+    """结合最近对话，用 LFM2.5 润色当前中文回答；失败或未加载时原样返回。"""
+    draft = (draft or "").strip()
+    if len(draft) < 6 or not CJK.search(draft):
+        return draft
+    if not _lfm_ready.is_set() or _lfm["error"]:
+        return draft
+    context = _context_text(history)
+    key = (draft, context, user_text[:200], en_reply[:300])
+    with _POLISH_LOCK:
+        if key in _POLISH_CACHE:
+            return _POLISH_CACHE[key]
+    prompt = POLISH_TEMPLATE.format(
+        context=context,
+        user=user_text[:300] or "（无）",
+        en_reply=en_reply[:600] or "（无）",
+        draft=draft[:800],
+    )
+    try:
+        raw = _lfm_generate(
+            [
+                {"role": "system", "content": POLISH_SYSTEM},
+                {"role": "user", "content": prompt},
+            ],
+            max_new_tokens=min(512, max(128, len(draft) * 2)),
+        )
+    except Exception:  # noqa: BLE001 - 润色失败不能影响回答
+        return draft
+    out = _clean_polish(raw)
+    result = out if _polish_ok(out, draft) else draft
+    with _POLISH_LOCK:
+        if len(_POLISH_CACHE) >= _POLISH_MAX:
+            _POLISH_CACHE.pop(next(iter(_POLISH_CACHE)))
+        _POLISH_CACHE[key] = result
+    return result
+
+
 # --- 对话 -------------------------------------------------------------------
-def chat(message, history, memory, show_en, engine):
+def chat(message, history, memory, show_en, engine, polish):
     history = list(history or [])
     memory = memory if isinstance(memory, dict) else {}
     text = (message or "").strip()
@@ -305,9 +410,18 @@ def chat(message, history, memory, show_en, engine):
         result = _get_pybot().turn(en_user, memory)
         en_reply = str(result.get("reply") or "")
         zh_reply = translate(en_reply, "en2zh", engine_key)
+        polish_note = "关"
         if not zh_reply:
             zh_reply = "（翻译失败，以下为 PyBot 英文原文）\n\n" + en_reply
             note = (note + " 回复翻译失败。").strip()
+            polish_note = "跳过"
+        elif polish:
+            polished = polish_zh(zh_reply, history, zh_user, en_reply)
+            if polished != zh_reply:
+                zh_reply = polished
+                polish_note = "完成"
+            else:
+                polish_note = "跳过"
 
         shown = zh_reply
         if show_en and en_reply:
@@ -321,7 +435,8 @@ def chat(message, history, memory, show_en, engine):
         step = "中→英" if user_is_zh else "英→中"
         status = (
             f"**模块**：`{result.get('module')}`　**流程**：{step} → PyBot → 英→中"
-            f"　**引擎**：{engine}　**PyBot 英文输入**：{en_user[:120]}"
+            f"　**引擎**：{engine}　**润色**：{polish_note}"
+            f"　**PyBot 英文输入**：{en_user[:120]}"
         )
         return "", history, memory, status
     except Exception as exc:  # noqa: BLE001 - 一轮失败不能让页面 500
@@ -349,7 +464,9 @@ with gr.Blocks(title="PyBot 中文版") as demo:
         "PyBot 是一个**没有权重、没有训练**的英文规则聊天机器人：全部由规则、正则和查表组成。"
         "这里把你说的话译成英文交给 PyBot，再把回答译回中文。\n\n"
         "**翻译引擎**：默认 `Opus-MT`（专用翻译模型，长句稳定）；`LFM2.5-350M` 仅作实验对照，"
-        "短句可用、长回答容易跑偏。翻译在 2 vCPU 上仍需几秒到几十秒，首轮要等模型下载。"
+        "短句可用、长回答容易跑偏。翻译在 2 vCPU 上仍需几秒到几十秒，首轮要等模型下载。\n\n"
+        "**润色**：默认开启。LFM2.5 会看到最近几轮对话和 PyBot 英文原答，只改当前中文回答的措辞；"
+        "事实、数字、人名被改动时自动放弃润色，回退到 Opus 译文。"
     )
     with gr.Row():
         with gr.Column(scale=3):
@@ -364,11 +481,12 @@ with gr.Blocks(title="PyBot 中文版") as demo:
                 clear = gr.Button("清空")
             with gr.Row():
                 show_en = gr.Checkbox(label="显示 PyBot 英文原文", value=False)
-                engine = gr.Radio(
-                    choices=["Opus-MT（推荐）", "LFM2.5（实验）"],
-                    value="Opus-MT（推荐）",
-                    label="翻译引擎",
-                )
+                polish = gr.Checkbox(label="用 LFM2.5 结合上下文润色（较慢）", value=True)
+            engine = gr.Radio(
+                choices=["Opus-MT（推荐）", "LFM2.5（实验）"],
+                value="Opus-MT（推荐）",
+                label="翻译引擎",
+            )
         with gr.Column(scale=2):
             status = gr.Markdown(_status())
             refresh = gr.Button("刷新状态")
@@ -376,9 +494,10 @@ with gr.Blocks(title="PyBot 中文版") as demo:
                 "### 这一轮发生了什么\n"
                 "1. 你的中文 → 译成英文\n"
                 "2. PyBot 规则引擎用英文回答\n"
-                "3. 英文回答 → 译回中文\n\n"
+                "3. 英文回答 → 译回中文\n"
+                "4. LFM2.5 结合上下文润色（默认开）\n\n"
                 "翻译失败会自动回退：中文没译出来就不送 PyBot；"
-                "回答没译出来就显示英文原文。"
+                "回答没译出来就显示英文原文。润色只改措辞，不改事实。"
             )
             gr.Examples(
                 examples=[
@@ -392,7 +511,7 @@ with gr.Blocks(title="PyBot 中文版") as demo:
             )
 
     state = gr.State({})
-    inputs = [msg, chatbot, state, show_en, engine]
+    inputs = [msg, chatbot, state, show_en, engine, polish]
     outputs = [msg, chatbot, state, status]
     msg.submit(chat, inputs, outputs, api_visibility="private")
     send.click(chat, inputs, outputs, api_name="ask")

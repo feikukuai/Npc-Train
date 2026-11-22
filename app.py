@@ -236,9 +236,17 @@ def _lfm_chunk(text, direction):
     return None
 
 
+def _engine_order(direction, engine):
+    if engine == "lfm":
+        return ["lfm", "opus"]
+    if engine == "opus":
+        return ["opus", "lfm"]
+    # 自动：中文短问句用 LFM（对短句更准），英文长回答用 Opus（长句更稳）
+    return ["lfm", "opus"] if direction == "zh2en" else ["opus", "lfm"]
+
+
 def _translate_chunk(text, direction, engine):
-    order = ["opus", "lfm"] if engine != "lfm" else ["lfm", "opus"]
-    for name in order:
+    for name in _engine_order(direction, engine):
         try:
             out = _opus_chunk(text, direction) if name == "opus" else _lfm_chunk(text, direction)
         except Exception:  # noqa: BLE001 - 引擎不可用就换另一个
@@ -279,15 +287,13 @@ POLISH_SYSTEM = (
     "只输出改写后的中文回答，不要解释。"
 )
 POLISH_TEMPLATE = (
-    "要求：\n"
-    "1. 只输出改写后的中文回答，不要解释。\n"
-    "2. 保留原意，不新增事实、数字、人名、地点。\n"
-    "3. 如果原回答已经合适，原样输出。\n"
-    "4. 不要提 PyBot、翻译、系统、规则。\n\n"
+    "根据下面的对话，只改写“待改写句子”，让它更自然、通顺、贴题。\n"
+    "要求：只输出改写后的这一句中文；保留原意，不新增事实、数字、人名；不要解释。\n\n"
     "[最近对话]\n{context}\n\n"
     "[本轮用户]\n{user}\n\n"
     "[PyBot 英文原答]\n{en_reply}\n\n"
-    "[待润色回答]\n{draft}\n\n"
+    "[完整待润色回答]\n{draft}\n\n"
+    "[待改写句子]\n{target}\n\n"
     "改写："
 )
 _POLISH_CACHE = {}
@@ -315,6 +321,23 @@ def _numbers(text):
     return set(re.findall(r"\d+(?:\.\d+)?", text or ""))
 
 
+def _bigrams(text):
+    text = re.sub(r"\s+", "", text or "")
+    return {text[i:i + 2] for i in range(max(0, len(text) - 1))}
+
+
+def _zh_sentences(text):
+    parts = [p.strip() for p in re.split(r"(?<=[。！？；!?;])", text or "") if p.strip()]
+    out = []
+    for part in parts:
+        while len(part) > 120:
+            out.append(part[:120])
+            part = part[120:]
+        if part:
+            out.append(part)
+    return out
+
+
 def _clean_polish(text):
     text = (text or "").strip()
     text = re.sub(r"^(改写|润色|修改|优化)(后)?(的)?(中文|句子|版本)?\s*[:：]\s*", "", text)
@@ -338,11 +361,15 @@ def _polish_ok(out, original):
         word in original for word in ("原文", "改写", "PyBot")
     ):
         return False
+    # 改写后应与原句共享足够多的字词；否则视为跑题/套话
+    a, b = _bigrams(out), _bigrams(original)
+    if a and b and len(a & b) / max(len(b), 1) < 0.25:
+        return False
     return True
 
 
 def polish_zh(draft, history=None, user_text="", en_reply=""):
-    """结合最近对话，用 LFM2.5 润色当前中文回答；失败或未加载时原样返回。"""
+    """结合最近对话，用 LFM2.5 逐句润色中文回答；失败或未加载时原样返回。"""
     draft = (draft or "").strip()
     if len(draft) < 6 or not CJK.search(draft):
         return draft
@@ -353,24 +380,34 @@ def polish_zh(draft, history=None, user_text="", en_reply=""):
     with _POLISH_LOCK:
         if key in _POLISH_CACHE:
             return _POLISH_CACHE[key]
-    prompt = POLISH_TEMPLATE.format(
-        context=context,
-        user=user_text[:300] or "（无）",
-        en_reply=en_reply[:600] or "（无）",
-        draft=draft[:800],
-    )
-    try:
-        raw = _lfm_generate(
-            [
-                {"role": "system", "content": POLISH_SYSTEM},
-                {"role": "user", "content": prompt},
-            ],
-            max_new_tokens=min(512, max(128, len(draft) * 2)),
+    parts = []
+    changed = False
+    for sentence in _zh_sentences(draft):
+        prompt = POLISH_TEMPLATE.format(
+            context=context,
+            user=user_text[:200] or "（无）",
+            en_reply=en_reply[:400] or "（无）",
+            draft=draft[:600],
+            target=sentence,
         )
-    except Exception:  # noqa: BLE001 - 润色失败不能影响回答
-        return draft
-    out = _clean_polish(raw)
-    result = out if _polish_ok(out, draft) else draft
+        try:
+            raw = _lfm_generate(
+                [
+                    {"role": "system", "content": POLISH_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                max_new_tokens=min(192, max(64, len(sentence) * 2)),
+            )
+        except Exception:  # noqa: BLE001 - 单句失败不影响整段
+            parts.append(sentence)
+            continue
+        out = _clean_polish(raw)
+        if out and out != sentence and _polish_ok(out, sentence):
+            parts.append(out)
+            changed = True
+        else:
+            parts.append(sentence)
+    result = "".join(parts) if changed else draft
     with _POLISH_LOCK:
         if len(_POLISH_CACHE) >= _POLISH_MAX:
             _POLISH_CACHE.pop(next(iter(_POLISH_CACHE)))
@@ -385,7 +422,9 @@ def chat(message, history, memory, show_en, engine, polish):
     text = (message or "").strip()
     if not text:
         return "", history, memory, _status("等待输入")
-    engine_key = "lfm" if str(engine).startswith("LFM") else "opus"
+    engine_key = "lfm" if str(engine).startswith("LFM") else (
+        "opus" if str(engine).startswith("Opus") else "auto"
+    )
 
     user_is_zh = bool(CJK.search(text))
     note = ""
@@ -463,8 +502,9 @@ with gr.Blocks(title="PyBot 中文版") as demo:
         "# PyBot 中文版\n"
         "PyBot 是一个**没有权重、没有训练**的英文规则聊天机器人：全部由规则、正则和查表组成。"
         "这里把你说的话译成英文交给 PyBot，再把回答译回中文。\n\n"
-        "**翻译引擎**：默认 `Opus-MT`（专用翻译模型，长句稳定）；`LFM2.5-350M` 仅作实验对照，"
-        "短句可用、长回答容易跑偏。翻译在 2 vCPU 上仍需几秒到几十秒，首轮要等模型下载。\n\n"
+        "**翻译引擎**：默认 `自动`——中文短问句用 `LFM2.5-350M`（短句更准），"
+        "英文长回答用 `Opus-MT`（长句更稳）；也可以手动固定。翻译在 2 vCPU 上仍需几秒到几十秒，"
+        "首轮要等模型下载。\n\n"
         "**润色**：默认开启。LFM2.5 会看到最近几轮对话和 PyBot 英文原答，只改当前中文回答的措辞；"
         "事实、数字、人名被改动时自动放弃润色，回退到 Opus 译文。"
     )
@@ -483,8 +523,8 @@ with gr.Blocks(title="PyBot 中文版") as demo:
                 show_en = gr.Checkbox(label="显示 PyBot 英文原文", value=False)
                 polish = gr.Checkbox(label="用 LFM2.5 结合上下文润色（较慢）", value=True)
             engine = gr.Radio(
-                choices=["Opus-MT（推荐）", "LFM2.5（实验）"],
-                value="Opus-MT（推荐）",
+                choices=["自动（推荐）", "LFM2.5（实验）", "Opus-MT"],
+                value="自动（推荐）",
                 label="翻译引擎",
             )
         with gr.Column(scale=2):

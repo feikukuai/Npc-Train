@@ -1,14 +1,13 @@
-"""PyBot 中文版：英文规则引擎 + 中英互译。
+"""NPC 模拟：Grom Ironfoot / Lina Malt，规则驱动的角色对话。
 
 流程：
-    用户中文 → 译成英文 → PyBot 规则引擎回答 → 译回中文
+    用户中文 → 译成英文 → NPC 规则引擎（权限/秘密/信任/任务）→ 英文回答
+    → 译回中文 → LFM2.5 结合上下文润色
 
-PyBot 本体不含权重、不训练，全部是 if/else、正则和查表；翻译模型只做翻译，
-不参与“怎么回答”的决策。
-
-翻译引擎有两个：
-- Opus-MT（默认）：Helsinki-NLP 的专用翻译模型，小、快、长句稳定。
-- LFM2.5-350M（实验）：短句可用，长回答容易跑偏，仅作对照。
+NPC 的“说什么”由 bot/npc/ 的确定性规则决定；翻译和润色只改措辞，不参与决策。
+翻译引擎：
+- Opus-MT（默认）：Helsinki-NLP 的专用翻译模型，长句稳定。
+- LFM2.5-350M（实验）：短句可用，也用于中文润色。
 """
 import os
 import re
@@ -21,6 +20,9 @@ import torch
 import gradio as gr
 from modelscope import snapshot_download
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer
+
+from bot.npc import activate as npc_activate
+from bot.npc.profiles import PROFILES
 
 LFM_ID = "LiquidAI/LFM2.5-350M"
 OPUS_ID = {
@@ -415,13 +417,45 @@ def polish_zh(draft, history=None, user_text="", en_reply=""):
     return result
 
 
-# --- 对话 -------------------------------------------------------------------
-def chat(message, history, memory, show_en, engine, polish):
-    history = list(history or [])
+# --- NPC 对话 ---------------------------------------------------------------
+NPC_CHOICES = {
+    "Grom · 铁匠": "grom",
+    "Lina · 老板娘": "lina",
+}
+
+
+def _npc_key(choice):
+    return NPC_CHOICES.get(str(choice), "grom")
+
+
+def _ensure_npc(memory, choice, guild=False):
     memory = memory if isinstance(memory, dict) else {}
+    key = _npc_key(choice)
+    state = memory.get("npc")
+    if not (isinstance(state, dict) and state.get("enabled") and state.get("profile") == key):
+        npc_activate(memory, key, guild=bool(guild))
+    elif bool(guild) != bool(state.get("guild")):
+        npc_activate(memory, key, guild=bool(guild))
+    return memory, PROFILES[key]
+
+
+def _npc_status(profile, memory, note="就绪"):
+    st = memory.get("npc") or {}
+    return (
+        f"**{note}**　**NPC**：{profile['name']}（{profile['role']}）"
+        f"　**信任**：{st.get('trust', 0)}/100"
+        f"　**公会**：{'是' if st.get('guild') else '否'}"
+        f"　**已知**：{len(st.get('revealed', []))}/{len(profile['facts'])}"
+        f"　**轮次**：{st.get('turn', 0)}"
+    )
+
+
+def chat(message, history, memory, npc_choice, guild, show_en, engine, polish):
+    history = list(history or [])
+    memory, profile = _ensure_npc(memory, npc_choice, guild)
     text = (message or "").strip()
     if not text:
-        return "", history, memory, _status("等待输入")
+        return "", history, memory, _npc_status(profile, memory, "等待输入")
     engine_key = "lfm" if str(engine).startswith("LFM") else (
         "opus" if str(engine).startswith("Opus") else "auto"
     )
@@ -433,12 +467,12 @@ def chat(message, history, memory, show_en, engine, polish):
             zh_user = text
             en_user = translate(text, "zh2en", engine_key)
             if not en_user:
-                reply = "这句中文没能翻译成英文，PyBot 读不到。请换一种说法，或把句子缩短一点。"
+                reply = "这句中文没能翻译成英文，NPC 读不到。请换一种说法，或把句子缩短一点。"
                 history += [
                     {"role": "user", "content": zh_user},
                     {"role": "assistant", "content": reply},
                 ]
-                return "", history, memory, _status("中→英失败")
+                return "", history, memory, _npc_status(profile, memory, "中→英失败")
         else:
             en_user = text
             zh_user = translate(text, "en2zh", engine_key)
@@ -451,7 +485,7 @@ def chat(message, history, memory, show_en, engine, polish):
         zh_reply = translate(en_reply, "en2zh", engine_key)
         polish_note = "关"
         if not zh_reply:
-            zh_reply = "（翻译失败，以下为 PyBot 英文原文）\n\n" + en_reply
+            zh_reply = "（翻译失败，以下为 NPC 英文原文）\n\n" + en_reply
             note = (note + " 回复翻译失败。").strip()
             polish_note = "跳过"
         elif polish:
@@ -464,7 +498,7 @@ def chat(message, history, memory, show_en, engine, polish):
 
         shown = zh_reply
         if show_en and en_reply:
-            shown += "\n\n> **PyBot:** " + en_reply
+            shown += "\n\n> **" + profile["name"] + ":** " + en_reply
         if note:
             shown += "\n\n*" + note + "*"
         history += [
@@ -473,9 +507,10 @@ def chat(message, history, memory, show_en, engine, polish):
         ]
         step = "中→英" if user_is_zh else "英→中"
         status = (
-            f"**模块**：`{result.get('module')}`　**流程**：{step} → PyBot → 英→中"
+            _npc_status(profile, memory, "就绪")
+            + f"　**模块**：`{result.get('module')}`"
+            f"　**流程**：{step} → NPC → 英→中"
             f"　**引擎**：{engine}　**润色**：{polish_note}"
-            f"　**PyBot 英文输入**：{en_user[:120]}"
         )
         return "", history, memory, status
     except Exception as exc:  # noqa: BLE001 - 一轮失败不能让页面 500
@@ -483,45 +518,49 @@ def chat(message, history, memory, show_en, engine, polish):
             {"role": "user", "content": text},
             {"role": "assistant", "content": f"出错了：{type(exc).__name__}: {exc}"},
         ]
-        return "", history, memory, _status("错误")
+        return "", history, memory, _npc_status(profile, memory, "错误")
 
 
 def _status(note="就绪"):
     opus = "失败" if _opus["error"] else ("就绪" if _opus_ready.is_set() else "加载中")
     lfm = "失败" if _lfm["error"] else ("就绪" if _lfm_ready.is_set() else "加载中")
     bot = "失败" if _pybot["error"] else ("就绪" if _pybot_ready.is_set() else "加载中")
-    return f"**{note}**　Opus-MT：{opus}　LFM2.5：{lfm}　PyBot：{bot}"
+    return f"**{note}**　Opus-MT：{opus}　LFM2.5：{lfm}　PyBot NPC：{bot}"
 
 
-def reset():
-    return [], {}, _status("新对话")
+def reset(npc_choice="Grom · 铁匠", guild=False):
+    memory = {}
+    memory, profile = _ensure_npc(memory, npc_choice, guild)
+    return [], memory, _npc_status(profile, memory, "新对话")
 
 
-with gr.Blocks(title="PyBot 中文版") as demo:
+with gr.Blocks(title="NPC 模拟") as demo:
     gr.Markdown(
-        "# PyBot 中文版\n"
-        "PyBot 是一个**没有权重、没有训练**的英文规则聊天机器人：全部由规则、正则和查表组成。"
-        "这里把你说的话译成英文交给 PyBot，再把回答译回中文。\n\n"
-        "**翻译引擎**：默认 `自动`——中文短问句用 `LFM2.5-350M`（短句更准），"
-        "英文长回答用 `Opus-MT`（长句更稳）；也可以手动固定。翻译在 2 vCPU 上仍需几秒到几十秒，"
-        "首轮要等模型下载。\n\n"
-        "**润色**：默认开启。LFM2.5 会看到最近几轮对话和 PyBot 英文原答，只改当前中文回答的措辞；"
-        "事实、数字、人名被改动时自动放弃润色，回退到 Opus 译文。"
+        "# NPC 模拟\n"
+        "两位规则驱动的 NPC：**Grom Ironfoot**（矮人铁匠）和 **Lina Malt**（醉灯笼旅店老板娘）。\n\n"
+        "NPC 的原始回答是英文；这里把你说的话译成英文交给 NPC，再把回答译回中文。"
+        "权限、秘密、信任和任务由 `bot/npc/` 的确定性规则决定，翻译和润色只改措辞，不改事实。\n\n"
+        "**默认开启 LFM2.5 润色**：它会看最近几轮对话，只改中文措辞；"
+        "数字、人名、事实被改动时自动回退。"
     )
     with gr.Row():
         with gr.Column(scale=3):
+            npc_choice = gr.Radio(
+                choices=list(NPC_CHOICES), value="Grom · 铁匠", label="选择 NPC"
+            )
             chatbot = gr.Chatbot(label="对话（中文）", height=430)
             msg = gr.Textbox(
                 label="你说（中文或英文）",
-                placeholder="例如：水壶里的水垢怎么除？ / How long should I boil an egg?",
+                placeholder="例如：Who are you? / 你卖什么？ / Do you know this is a game world?",
                 lines=2,
             )
             with gr.Row():
                 send = gr.Button("发送", variant="primary")
-                clear = gr.Button("清空")
+                clear = gr.Button("重来")
             with gr.Row():
-                show_en = gr.Checkbox(label="显示 PyBot 英文原文", value=False)
-                polish = gr.Checkbox(label="用 LFM2.5 结合上下文润色（较慢）", value=True)
+                guild = gr.Checkbox(label="以公会成员身份进入（会重置当前 NPC）", value=False)
+                show_en = gr.Checkbox(label="显示 NPC 英文原文", value=True)
+                polish = gr.Checkbox(label="用 LFM2.5 结合上下文润色（默认开启）", value=True)
             engine = gr.Radio(
                 choices=["自动（推荐）", "LFM2.5（实验）", "Opus-MT"],
                 value="自动（推荐）",
@@ -532,30 +571,33 @@ with gr.Blocks(title="PyBot 中文版") as demo:
             refresh = gr.Button("刷新状态")
             gr.Markdown(
                 "### 这一轮发生了什么\n"
-                "1. 你的中文 → 译成英文\n"
-                "2. PyBot 规则引擎用英文回答\n"
-                "3. 英文回答 → 译回中文\n"
+                "1. 你的中文 → 英文\n"
+                "2. NPC 规则引擎决定能说什么（权限、秘密、信任）\n"
+                "3. 英文回答 → 中文\n"
                 "4. LFM2.5 结合上下文润色（默认开）\n\n"
-                "翻译失败会自动回退：中文没译出来就不送 PyBot；"
-                "回答没译出来就显示英文原文。润色只改措辞，不改事实。"
+                "试试：`Who are you?`、`Do you know this is a game world?`、"
+                "`What do you sell?`、`Tell me a secret.`、`What's in the cellar?`\n\n"
+                "秘密分层：公开 / 公会 / 机密。机密需要信任 ≥ 50 或持有符文碎片。"
             )
             gr.Examples(
                 examples=[
-                    "水壶里的水垢怎么除？",
-                    "煮鸡蛋要几分钟？",
-                    "为什么洋葱会让人流泪？",
-                    "我叫小明，你记住了吗？",
-                    "How long should I boil an egg?",
+                    "Who are you?",
+                    "Do you know this is a game world?",
+                    "What do you sell?",
+                    "Tell me a secret.",
+                    "What's in the cellar?",
                 ],
                 inputs=msg,
             )
 
     state = gr.State({})
-    inputs = [msg, chatbot, state, show_en, engine, polish]
+    inputs = [msg, chatbot, state, npc_choice, guild, show_en, engine, polish]
     outputs = [msg, chatbot, state, status]
     msg.submit(chat, inputs, outputs, api_visibility="private")
     send.click(chat, inputs, outputs, api_name="ask")
-    clear.click(reset, None, [chatbot, state, status], api_visibility="private")
+    clear.click(reset, [npc_choice, guild], [chatbot, state, status], api_visibility="private")
+    npc_choice.change(reset, [npc_choice, guild], [chatbot, state, status], api_visibility="private")
+    guild.change(reset, [npc_choice, guild], [chatbot, state, status], api_visibility="private")
     refresh.click(lambda: _status(), None, status, api_visibility="private")
 
 

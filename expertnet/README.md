@@ -103,6 +103,18 @@ player: What do you sell?
 
 **安全边界**：句库选择器只决定“怎么说”，不决定“能不能说”。demo 里它在低信任时也可能挑到机密句，因此上线时必须保留 `engine` 的权限判定——先由规则决定该不该说，再从允许的 beat 句库里让模型挑措辞。
 
+## 本地网页试玩
+
+```bash
+# 先生成句库模型（约 30 秒）
+python -m expertnet.atoms --sessions 1000 --epochs 30
+
+# 启动网页，浏览器打开 http://127.0.0.1:7860
+python tools/chat_web.py
+```
+
+页面顶部可以切换“对比 / 规则 / 句库”：对比模式每轮同时显示规则引擎和句库模型的回复，方便直接看出模型是会挑对话、还是只是碰巧说对；徽章显示当前信任与回合。模型文件缺失时句库模式会明确提示，规则 NPC 不受影响。
+
 ## 与现有 NPC 的关系
 
 - 先在 `reader.py` 的 `fallback / out_of_world` 分支做 A/B：学生置信度高才接管，规则红线（SAFETY / BOUNDARY / JAILBREAK / 权限）永远优先。

@@ -113,6 +113,34 @@ def tensors(sessions, hf: HFSentenceEncoder):
                             .view(len(sessions), len(sessions[0]), -1)}
 
 
+class AtomSession:
+    """One player's 64-d memory plus the frozen sentence encoder."""
+
+    def __init__(self, model: AtomNet, hf: HFSentenceEncoder, atoms: list[str]):
+        self.model = model.eval()
+        self.hf = hf
+        self.atoms = atoms
+        self.reset()
+
+    def reset(self) -> None:
+        self.h = torch.zeros(1, self.model.hidden)
+
+    def reply(self, text: str, state: dict | None = None) -> tuple[str, float]:
+        vec = self.hf.embed([text]).unsqueeze(0)
+        st = state_vector(state, None).reshape(1, 1, -1)
+        with torch.no_grad():
+            logits, _, self.h = self.model(vec, st, self.h)
+        probs = F.softmax(logits[0, 0], dim=-1)
+        return self.atoms[int(probs.argmax())], float(probs.max())
+
+
+def load_atoms(path: str, hf: HFSentenceEncoder) -> AtomSession:
+    ckpt = torch.load(path, map_location="cpu")
+    model = AtomNet(**ckpt["config"])
+    model.load_state_dict(ckpt["state"])
+    return AtomSession(model, hf, ckpt["atoms"])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sessions", type=int, default=300)

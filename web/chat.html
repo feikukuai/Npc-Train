@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PyBot · 句库对话实验</title>
+<style>
+  :root {
+    --bg: #14120f;
+    --panel: #1d1a15;
+    --panel-2: #26221b;
+    --ink: #efe6d6;
+    --muted: #a89b87;
+    --line: #3a3328;
+    --gold: #d8b56a;
+    --moss: #8fae7a;
+    --clay: #c98563;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 700px at 20% 0%, #241f18, var(--bg));
+    color: var(--ink);
+    font: 15px/1.55 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+  .app {
+    width: min(920px, 100%);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 16px 14px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  h1 { font-size: 19px; margin: 0; letter-spacing: .3px; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .spacer { flex: 1; }
+  .badges { display: flex; gap: 8px; }
+  .badge {
+    font-size: 12px; color: var(--muted);
+    background: var(--panel-2); border: 1px solid var(--line);
+    padding: 3px 9px; border-radius: 99px;
+  }
+  .badge b { color: var(--ink); font-weight: 600; }
+  .controls { display: flex; gap: 8px; align-items: center; }
+  .seg {
+    display: flex; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 2px; gap: 2px;
+  }
+  .seg button {
+    border: 0; background: transparent; color: var(--muted);
+    font: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 7px;
+    cursor: pointer;
+  }
+  .seg button.on { background: var(--gold); color: #241d10; font-weight: 600; }
+  .ghost {
+    border: 1px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 12.5px;
+    cursor: pointer;
+  }
+  .ghost:hover { color: var(--ink); border-color: #5a4d39; }
+  main {
+    flex: 1; overflow-y: auto; padding: 16px 4px 8px;
+    scroll-behavior: smooth;
+  }
+  .note {
+    color: var(--muted); font-size: 12px; text-align: center;
+    border: 1px dashed var(--line); border-radius: 10px;
+    padding: 8px 12px; margin: 0 auto 16px; max-width: 620px;
+  }
+  .turn { margin-bottom: 18px; }
+  .user { display: flex; justify-content: flex-end; }
+  .user .bubble {
+    background: #2f3a2b; border: 1px solid #43543c; color: #eef3e7;
+    border-radius: 14px 14px 4px 14px; padding: 9px 13px; max-width: 76%;
+    white-space: pre-wrap;
+  }
+  .bots { display: flex; flex-direction: column; gap: 8px; margin-top: 9px; align-items: flex-start; }
+  .bot {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 4px 14px 14px 14px; padding: 9px 13px; max-width: 84%;
+  }
+  .tag {
+    display: inline-block; font-size: 11px; letter-spacing: .4px;
+    text-transform: uppercase; margin-bottom: 4px;
+  }
+  .bot.rule .tag { color: var(--moss); }
+  .bot.atom .tag { color: var(--gold); }
+  .conf { color: var(--muted); font-size: 11px; margin-left: 6px; text-transform: none; }
+  .bot.off { color: var(--muted); font-style: italic; }
+  .typing { color: var(--muted); font-size: 13px; padding: 4px 2px; }
+  footer {
+    border-top: 1px solid var(--line); padding-top: 12px;
+    display: flex; gap: 10px;
+  }
+  textarea {
+    flex: 1; resize: none; height: 44px; max-height: 120px;
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 13px; font: inherit; outline: none;
+  }
+  textarea:focus { border-color: #6d5a3c; }
+  .send {
+    width: 84px; border: 0; border-radius: 10px; cursor: pointer;
+    background: var(--gold); color: #241d10; font: inherit; font-weight: 650;
+  }
+  .send:disabled { opacity: .5; cursor: wait; }
+  @media (max-width: 560px) {
+    h1 { font-size: 16px; }
+    .sub { display: none; }
+    .bot, .user .bubble { max-width: 92%; }
+    .send { width: 68px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1>小红 · 句库对话</h1>
+      <span class="sub">规则引擎 vs 整句预测（166 句）</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="badges">
+      <span class="badge">信任 <b id="trust">35</b></span>
+      <span class="badge">回合 <b id="turn">0</b></span>
+    </div>
+    <div class="controls">
+      <div class="seg" id="modes">
+        <button data-mode="both" class="on">对比</button>
+        <button data-mode="rule">规则</button>
+        <button data-mode="atom">句库</button>
+      </div>
+      <button class="ghost" id="reset">重开</button>
+    </div>
+  </header>
+
+  <main id="log">
+    <p class="note" id="note">左边是原来的规则 NPC，右边是只学“从句库里挑一句”的 64 维记忆模型。它不会写新句子，但每次都会说完整的话。</p>
+  </main>
+
+  <footer>
+    <textarea id="input" rows="1" placeholder="和小红说点什么，例如：Hello. / Tell me about the bees. / What do you sell?"></textarea>
+    <button class="send" id="send">发送</button>
+  </footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const log = $("log");
+const input = $("input");
+const sendBtn = $("send");
+let mode = "both";
+let sid = localStorage.getItem("pybot_sid") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+localStorage.setItem("pybot_sid", sid);
+let atomReady = true;
+
+fetch("/api/health").then(r => r.json()).then(d => {
+  atomReady = !!d.atoms;
+  if (!atomReady) {
+    $("note").textContent = "没有找到 expertnet/atoms.pt，句库模型不可用；先运行 python -m expertnet.atoms 再刷新。规则 NPC 仍可使用。";
+    document.querySelector('[data-mode="atom"]').disabled = true;
+  }
+}).catch(() => {});
+
+document.getElementById("modes").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-mode]");
+  if (!btn) return;
+  mode = btn.dataset.mode;
+  document.querySelectorAll("#modes button").forEach(b => b.classList.toggle("on", b === btn));
+});
+
+$("reset").addEventListener("click", async () => {
+  await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sid }) });
+  log.querySelectorAll(".turn").forEach(n => n.remove());
+  $("trust").textContent = "35";
+  $("turn").textContent = "0";
+});
+
+function bubble(cls, tag, text, conf) {
+  const wrap = document.createElement("div");
+  wrap.className = "bot " + cls;
+  const label = document.createElement("div");
+  label.className = "tag";
+  label.textContent = tag;
+  if (conf != null) {
+    const c = document.createElement("span");
+    c.className = "conf";
+    c.textContent = "置信度 " + conf;
+    label.appendChild(c);
+  }
+  const body = document.createElement("div");
+  body.textContent = text;
+  wrap.append(label, body);
+  return wrap;
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  input.style.height = "44px";
+  sendBtn.disabled = true;
+
+  const turn = document.createElement("div");
+  turn.className = "turn";
+  const user = document.createElement("div");
+  user.className = "user";
+  const ub = document.createElement("div");
+  ub.className = "bubble";
+  ub.textContent = text;
+  user.appendChild(ub);
+  const bots = document.createElement("div");
+  bots.className = "bots";
+  const wait = document.createElement("div");
+  wait.className = "typing";
+  wait.textContent = "小红在想…";
+  bots.appendChild(wait);
+  turn.append(user, bots);
+  log.appendChild(turn);
+  log.scrollTop = log.scrollHeight;
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sid, text, mode })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "请求失败");
+    bots.textContent = "";
+    if (mode !== "atom") bots.appendChild(bubble("rule", "规则引擎", data.rule));
+    if (mode !== "rule") {
+      if (data.atom) bots.appendChild(bubble("atom", "句库模型", data.atom.text, data.atom.confidence));
+      else bots.appendChild(bubble("off", "句库模型", "未加载 atoms.pt"));
+    }
+    $("trust").textContent = data.state.trust;
+    $("turn").textContent = data.state.turn;
+  } catch (err) {
+    bots.textContent = "";
+    const n = bubble("off", "错误", String(err.message || err));
+    bots.appendChild(n);
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+sendBtn.addEventListener("click", send);
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+input.addEventListener("input", () => {
+  input.style.height = "44px";
+  input.style.height = Math.min(input.scrollHeight, 120) + "px";
+});
+input.focus();
+</script>
+</body>
+</html>

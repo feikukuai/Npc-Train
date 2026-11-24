@@ -28,6 +28,8 @@ def fresh(profile: str = "grom", guild: bool = False, trust: int = DEFAULT_TRUST
         "last_quest": None,
         "last_intent": None,
         "claims": 0,
+        # Bank rotation offset: two sessions get different line orders.
+        "salt": random.randrange(1, 1 << 30),
     }
 
 

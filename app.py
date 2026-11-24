@@ -465,7 +465,8 @@ def _chat_fast(message, history, memory, profile):
     status = (
         _npc_status(profile, memory, "就绪")
         + f"　**模块**：`{result.get('module')}`"
-        "　**流程**：英文直通（无翻译）　**润色**：关"
+        "　**流程**：英文直通（无翻译）"
+        f"　**台词库**：{'命中' if result.get('zh') else '回退'}　**润色**：关"
     )
     return "", history, memory, status
 
@@ -514,19 +515,25 @@ def chat(message, history, memory, npc_choice, guild, show_en, engine, polish, f
 
         result = _get_pybot().turn(en_user, memory)
         en_reply = str(result.get("reply") or "")
-        zh_reply = translate(en_reply, "en2zh", engine_key)
-        polish_note = "关"
-        if not zh_reply:
-            zh_reply = "（翻译失败，以下为 NPC 英文原文）\n\n" + en_reply
-            note = (note + " 回复翻译失败。").strip()
-            polish_note = "跳过"
-        elif polish:
-            polished = polish_zh(zh_reply, history, zh_user, en_reply)
-            if polished != zh_reply:
-                zh_reply = polished
-                polish_note = "完成"
-            else:
+        bank_zh = str(result.get("zh") or "")
+        if bank_zh:
+            # Written and translated offline; no model call, no polish needed.
+            zh_reply = bank_zh
+            polish_note = "跳过（台词库）"
+        else:
+            zh_reply = translate(en_reply, "en2zh", engine_key)
+            polish_note = "关"
+            if not zh_reply:
+                zh_reply = "（翻译失败，以下为 NPC 英文原文）\n\n" + en_reply
+                note = (note + " 回复翻译失败。").strip()
                 polish_note = "跳过"
+            elif polish:
+                polished = polish_zh(zh_reply, history, zh_user, en_reply)
+                if polished != zh_reply:
+                    zh_reply = polished
+                    polish_note = "完成"
+                else:
+                    polish_note = "跳过"
 
         shown = zh_reply
         if show_en and en_reply:
@@ -542,6 +549,7 @@ def chat(message, history, memory, npc_choice, guild, show_en, engine, polish, f
             _npc_status(profile, memory, "就绪")
             + f"　**模块**：`{result.get('module')}`"
             f"　**流程**：{step} → NPC → 英→中"
+            f"　**台词库**：{'命中' if bank_zh else '回退'}"
             f"　**引擎**：{engine}　**润色**：{polish_note}"
         )
         return "", history, memory, status
@@ -573,7 +581,8 @@ with gr.Blocks(title="NPC 模拟") as demo:
         "和**小红**（青梅竹马）。\n\n"
         "**默认开启纯英文快速模式**：直接用英文对话，跳过翻译和润色，几乎没有额外等待。"
         "取消勾选后可用中文，NPC 的回答会译回中文并用 LFM2.5 润色。\n\n"
-        "权限、秘密、信任和任务由 `bot/npc/` 的确定性规则决定，翻译和润色只改措辞，不改事实。"
+        "高频台词来自离线台词库（英文 + 中文），命中时中文模式也省掉翻译；"
+        "决定说什么的仍是规则引擎，台词库只换措辞。"
     )
     with gr.Row():
         with gr.Column(scale=3):

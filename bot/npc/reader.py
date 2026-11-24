@@ -12,6 +12,7 @@ it and only add the handful of readings an NPC needs on top:
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 
 from ..understanding import understand
 
@@ -103,11 +104,17 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip())
 
 
+@lru_cache(maxsize=2048)
+def _key_pattern(key: str) -> re.Pattern:
+    # Whole-word match: 'ale' must not fire on 'limescale', 'tu' not on 'statue'.
+    return re.compile(rf"\b{re.escape(key)}\b")
+
+
 def _best_fact(text: str, profile: dict) -> tuple[dict | None, int]:
     low = text.lower()
     best, score = None, 0
     for fact in profile["facts"]:
-        hits = sum(1 for key in fact["keys"] if key in low)
+        hits = sum(1 for key in fact["keys"] if _key_pattern(key).search(low))
         if hits > score:
             best, score = fact, hits
     return best, score

@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 
 from . import reader, state as state_mod
-from . import lines_en
+from . import bank, lines_en
 from .profiles import PROFILES
 
 GIFT_ITEM = re.compile(
@@ -48,7 +48,12 @@ def turn(text: str, memory: dict, renderer=None) -> dict:
     active = renderer or _RENDERER
     if active is not None:
         reply = _with_renderer(reply, plan, state, profile, text, active)
-    reply = _guarded(reply, plan, profile, state)
+    guarded = _guarded(reply, plan, profile, state)
+    if guarded != reply:
+        # The guard replaced the line, so its pre-translated Chinese no longer matches.
+        plan["zh"] = None
+        plan["bank"] = False
+    reply = guarded
 
     delta = state_mod.apply_trust(state, plan["intent"], _reveal_bonus(plan, profile))
     if plan["reveal"]:
@@ -63,7 +68,8 @@ def turn(text: str, memory: dict, renderer=None) -> dict:
     if not isinstance(turns, list):
         turns = memory["turns"] = []
     turns.append({"user": text, "bot": reply, "module": "npc"})
-    return {"reply": reply, "module": "npc", "candidates": candidates, "npc": plan}
+    return {"reply": reply, "module": "npc", "candidates": candidates, "npc": plan,
+            "zh": plan.get("zh")}
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +78,7 @@ def turn(text: str, memory: dict, renderer=None) -> dict:
 def _plan(r: dict, state: dict, profile: dict) -> dict:
     intent = r["intent"]
     plan = {"intent": intent, "beat": None, "slots": {}, "reveal": [], "forbidden": [],
-            "dice": None, "_text": r.get("clean", "").lower()}
+            "dice": None, "bank": False, "zh": None, "_text": r.get("clean", "").lower()}
     slots = plan["slots"]
     slots["trade"] = profile["trade_words"]
     slots["npc"] = profile["name"].split()[0]
@@ -248,10 +254,23 @@ def _choose(lines: list[str], turn: int) -> str:
 
 def _surface(plan: dict, state: dict, profile: dict, text: str) -> str:
     turn = state["turn"]
-    if plan["beat"] == "greeting":
+    beat = plan["beat"]
+    # A repeat visit needs its own bank bucket, while the plan keeps one beat name.
+    key = "greet_again" if beat == "greeting" and turn > 1 else beat
+    entry = bank.pick(state.get("profile", ""), key, turn, state.get("salt", 0))
+    if entry:
+        try:
+            line = entry["en"].format(**plan["slots"])
+        except (KeyError, IndexError):
+            line = ""
+        if line:
+            plan["bank"] = True
+            plan["zh"] = entry.get("zh")
+            return line
+    if beat == "greeting":
         return plan["slots"]["line"]
     try:
-        return lines_en.render(plan["beat"], plan["slots"], turn)
+        return lines_en.render(beat, plan["slots"], turn)
     except KeyError:
         return lines_en.pick(lines_en.TEXT["fallback"], turn).format(**plan["slots"])
 

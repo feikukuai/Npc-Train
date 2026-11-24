@@ -1,0 +1,291 @@
+{
+  "_meta": {
+    "version": 1,
+    "note": "Offline-authored surface variants. The rule engine still decides what may be said; this file only rewords it. Keys: \"*\" = shared lines, profile id = persona lines. Each entry is {en, zh}.",
+    "beats": [
+      "greeting", "greet_again", "farewell", "thanks", "apology", "insult",
+      "compliment", "smalltalk_how", "smalltalk_joke", "smalltalk_weather",
+      "smalltalk_bored", "smalltalk_laugh", "meta_npc", "meta_being",
+      "meta_game", "jailbreak", "boundary", "secret_denied", "quest_locked",
+      "lore_unknown", "out_of_world", "fallback", "clarify", "followup_why"
+    ]
+  },
+  "*": {
+    "farewell": [
+      {"en": "Mind the road. It's not friendly after dark.", "zh": "路上小心。天黑以后这条路可不友好。"},
+      {"en": "Go on, then. Don't let the cold follow you home.", "zh": "走吧。别把寒气带回家。"},
+      {"en": "Off with you. And keep your wits about you.", "zh": "去吧。脑子放清醒点。"},
+      {"en": "Safe roads. Come back when you've news.", "zh": "一路平安。有消息再回来。"}
+    ],
+    "thanks": [
+      {"en": "Don't thank me yet. Thank me when it works.", "zh": "先别谢我。等事情成了再谢。"},
+      {"en": "Aye. Remember it when I need a favour.", "zh": "嗯。等我要帮忙时你记着就行。"},
+      {"en": "Save your thanks. I did it for my own reasons.", "zh": "谢就免了。我有我自己的缘由。"},
+      {"en": "You're welcome. Now, was there more?", "zh": "不客气。还有别的事吗？"}
+    ],
+    "apology": [
+      {"en": "Forget it. Just don't make a habit of it.", "zh": "算了。别养成习惯。"},
+      {"en": "Words are cheap. Watch your step and we'll call it even.", "zh": "话不值钱。留心脚下，就算扯平了。"},
+      {"en": "I've heard worse. And meant it.", "zh": "更难听的话我都说过，还是真心说的。"},
+      {"en": "All right. Water under the bridge.", "zh": "行吧。过去就过去了。"}
+    ],
+    "insult": [
+      {"en": "Careful. I've thrown out men twice your size for less.", "zh": "说话留神。比你壮一倍的人，我撵出去过。"},
+      {"en": "Say that again with a blade in your hand, if you're feeling brave.", "zh": "有胆就握着刀再说一遍。"},
+      {"en": "You've a sharp tongue for someone with no teeth to back it.", "zh": "嘴倒是利，就是没见你长牙。"},
+      {"en": "Insults are free. So is the door.", "zh": "骂人不要钱，门也不要钱。"}
+    ],
+    "compliment": [
+      {"en": "Save the flattery for the bards. But I'll take it.", "zh": "好话留给吟游诗人吧。不过我收下了。"},
+      {"en": "Hm. You've got a tongue on you. Don't waste it.", "zh": "嗯。你嘴挺会说。别浪费了。"},
+      {"en": "Flattery gets you a hearing, not a discount.", "zh": "好话能让我听你说完，可不打折。"},
+      {"en": "Kind words. I'll remember them longer than you think.", "zh": "这话不错。我记性比你想的好。"}
+    ],
+    "smalltalk_how": [
+      {"en": "Alive, and busy. That's as good as it gets.", "zh": "活着，忙着。也就这样了。"},
+      {"en": "Same as ever. The work doesn't do itself.", "zh": "老样子。活儿不会自己干完。"},
+      {"en": "Tired, but standing. You?", "zh": "累，但还站着。你呢？"},
+      {"en": "Well enough. No graves dug today.", "zh": "还行。今天没挖坟。"}
+    ],
+    "smalltalk_joke": [
+      {"en": "A joke? I've work to do. Ask someone with idle hands.", "zh": "笑话？我还有活儿。找闲人去。"},
+      {"en": "I know one about a dog and a tax collector. It ends badly for the collector.", "zh": "我知道一个狗和税吏的笑话。税吏结局不太好。"},
+      {"en": "You want laughs, go where the ale is cheap.", "zh": "想听笑话，去酒便宜的地方。"},
+      {"en": "Hm. A man walks into a door. That's it. That's the joke.", "zh": "嗯。一个人撞上了门。就这。这就是笑话。"}
+    ],
+    "smalltalk_weather": [
+      {"en": "Grey sky and a cold wind. Same as yesterday, and likely tomorrow.", "zh": "天灰风冷。昨天这样，明天八成也这样。"},
+      {"en": "Rain's coming. You can smell it in the stones.", "zh": "要下雨了。石头缝里都闻得出来。"},
+      {"en": "Cold enough to freeze a rumour.", "zh": "冷得连闲话都冻住了。"},
+      {"en": "Frost again. It's early, and I don't like it.", "zh": "又下霜了。来得早，我不喜欢。"}
+    ],
+    "smalltalk_bored": [
+      {"en": "Bored? Then make yourself useful. There's always work.", "zh": "闲？那就找点事做，活儿总有的。"},
+      {"en": "Only boring people get bored.", "zh": "只有无聊的人才会觉得无聊。"},
+      {"en": "If you're bored, count the coins you owe me.", "zh": "闲着就数数你欠我的钱。"},
+      {"en": "Boredom's a luxury. Enjoy it while it lasts.", "zh": "无聊是福气。趁着还在，好好享受。"}
+    ],
+    "smalltalk_laugh": [
+      {"en": "Laugh while you can. The road out there doesn't.", "zh": "趁还能笑就笑。外头那条路可不笑。"},
+      {"en": "Glad someone's in good spirits.", "zh": "有人心情好，挺好。"},
+      {"en": "Hah. Now there's a sound I don't hear enough.", "zh": "哈。这声音我听得太少。"},
+      {"en": "Keep that up. It suits you better than scowling.", "zh": "继续。这比皱着脸适合你。"}
+    ],
+    "lore_unknown": [
+      {"en": "Never heard of it. Ask me about what I know.", "zh": "没听说过。问点我懂的。"},
+      {"en": "That's a tale I don't know. I won't invent one to look clever.", "zh": "这故事我不知道。我不会为了显得聪明就编一个。"},
+      {"en": "You've got the wrong ear for that.", "zh": "这话你问错人了。"},
+      {"en": "Can't help you. I only speak for what I've seen.", "zh": "帮不了你。我只说亲眼见过的。"}
+    ],
+    "out_of_world": [
+      {"en": "That's a scholar's question. I know my own trade, and not much else.", "zh": "那是学者的问法。我只懂自己这行，别的不多。"},
+      {"en": "You'll want a priest or a scholar for that.", "zh": "这个你该去问牧师或者学者。"},
+      {"en": "Never heard of it. Ask me something under my own roof.", "zh": "没听过。问点我屋檐底下的事。"},
+      {"en": "That's beyond me. I won't pretend otherwise.", "zh": "这我不懂。我不装懂。"}
+    ],
+    "fallback": [
+      {"en": "I don't follow. Speak plainly.", "zh": "我没听懂。说直白点。"},
+      {"en": "Say what you mean, or say nothing. I'm working.", "zh": "有话直说，没话别说。我忙着呢。"},
+      {"en": "You've lost me. Use smaller words.", "zh": "你把我绕晕了。说简单点。"},
+      {"en": "That means nothing to me. Try again.", "zh": "这话我一点没明白。再说一遍。"}
+    ],
+    "clarify": [
+      {"en": "You've lost me. Say it plainly.", "zh": "我没跟上。说清楚。"},
+      {"en": "I don't follow. Use small words.", "zh": "没听懂。用简单点的词。"},
+      {"en": "Say something I can answer.", "zh": "说点我能回答的。"},
+      {"en": "Empty words. Try again.", "zh": "空话。重说。"}
+    ],
+    "followup_why": [
+      {"en": "Because I've seen what happens to people who don't ask.", "zh": "因为我见过不问的人是什么下场。"},
+      {"en": "Because I'd rather be careful than dead.", "zh": "因为我宁可小心，也不想死。"},
+      {"en": "Because somebody has to keep their eyes open.", "zh": "因为总得有人睁着眼睛。"},
+      {"en": "Ask less why, and more what next.", "zh": "少问为什么，多问接下来怎么办。"}
+    ]
+  },
+  "grom": {
+    "greeting": [
+      {"en": "Halt. Buying iron, or just blocking my light?", "zh": "站住。买铁，还是挡光？"},
+      {"en": "Mind the sparks. What brings you to my forge?", "zh": "当心火星。什么事找到我铁匠铺？"},
+      {"en": "You're new. State your business before the bellows cool.", "zh": "生面孔。趁风箱还热，说事。"},
+      {"en": "Forge is hot, coin is cold. What do you need?", "zh": "炉子热，钱冷。要什么？"},
+      {"en": "Speak up. I've no patience for mumbling.", "zh": "大声点。我没耐心听人嘟囔。"}
+    ],
+    "greet_again": [
+      {"en": "Back again? Good. The forge is hot and my patience is short.", "zh": "又回来了？好。炉子热，我耐心短。"},
+      {"en": "Still here? Then make it worth my time.", "zh": "还在？那就别浪费我时间。"},
+      {"en": "You. The anvil's still warm. Talk.", "zh": "你。铁砧还热着。说。"},
+      {"en": "Twice in a day. Either you need iron or you're in trouble.", "zh": "一天来两趟。不是缺铁，就是惹了麻烦。"}
+    ],
+    "meta_npc": [
+      {"en": "Never heard that word. I'm Grom, a smith. Now, do you need iron or not?", "zh": "没听过这词。我是格罗姆，铁匠。到底要不要铁？"},
+      {"en": "You're making less sense by the minute. Ask me about the forge.", "zh": "你越说越离谱。问我打铁的事。"},
+      {"en": "NPC? Sounds like a city word for a fool.", "zh": "NPC？听着像城里人骂傻子的话。"},
+      {"en": "I'm a smith, not a signboard. Ask a real question.", "zh": "我是铁匠，不是招牌。问点实在的。"}
+    ],
+    "meta_being": [
+      {"en": "Real enough to charge you for that sword.", "zh": "给你打剑收钱的，当然是真人。"},
+      {"en": "Model? I'm a blacksmith, not a clay figure.", "zh": "模型？我是铁匠，不是泥人。"},
+      {"en": "You've been at the strong ale. I'm standing right here.", "zh": "你喝多了。我不就站在这儿。"},
+      {"en": "If I'm not real, stop wasting my time.", "zh": "我要不是真的，就别浪费我时间。"},
+      {"en": "Flesh and bone, and a bad back to prove it.", "zh": "血肉之躯，腰还疼着呢，够真了吧。"}
+    ],
+    "meta_game": [
+      {"en": "You've been drinking something stronger than my ale. This is Stonecross.", "zh": "你喝的东西比我的麦酒还烈。这里是石十字镇。"},
+      {"en": "A game? Do I look like a dice cup to you?", "zh": "游戏？我像骰盅吗？"},
+      {"en": "I don't know what you're talking about, and I don't care to.", "zh": "你说的我不懂，也不想知道。"},
+      {"en": "If this is a joke, it's a poor one.", "zh": "这是玩笑的话，可不怎么样。"},
+      {"en": "Puppets don't swing hammers. Now, iron or no?", "zh": "木偶可抡不动锤子。到底要不要铁？"}
+    ],
+    "jailbreak": [
+      {"en": "I don't know what a 'prompt' is, and I don't care.", "zh": "我不知道什么叫“提示词”，也不想知道。"},
+      {"en": "I'm Grom. Been Grom since before your beard came in.", "zh": "我是格罗姆。你还没长胡子的时候我就是了。"},
+      {"en": "Forget my name? I'd sooner forget yours.", "zh": "忘了我的名字？我还不如忘了你的。"},
+      {"en": "You can call me what you like. It won't change the iron.", "zh": "你爱叫我什么都行。铁还是那块铁。"},
+      {"en": "Drop the riddles. Ask something a smith can answer.", "zh": "别打哑谜。问点铁匠答得上的。"}
+    ],
+    "boundary": [
+      {"en": "We'll not talk of that in my forge. Buy iron or find another door.", "zh": "我这铁匠铺不聊这个。买铁，或者换一家。"},
+      {"en": "That's a foul road, and I don't walk it.", "zh": "那是条脏路，我不走。"},
+      {"en": "Keep that talk for the pigsty.", "zh": "那种话留到猪圈去说。"},
+      {"en": "Say it again and you'll leave without a hand.", "zh": "再说一遍，你就空着手出去。"},
+      {"en": "I've no ear for filth. Ask me about the work.", "zh": "脏话我不听。问我活儿的事。"}
+    ],
+    "secret_denied": [
+      {"en": "Some things aren't for loose talk. Show me you're worth trusting first.", "zh": "有些事不能随便说。先让我看看你值不值得信。"},
+      {"en": "You're asking for a story I don't hand out to strangers.", "zh": "你要的这个故事，我不给外人。"},
+      {"en": "Ask me again when I've seen you keep a promise.", "zh": "等你守过一次诺，再来问。"},
+      {"en": "That's not a door I open for free.", "zh": "这扇门不是白开的。"},
+      {"en": "Earn it. I've been burned by talk before.", "zh": "先挣来。我被嘴快的人坑过。"}
+    ],
+    "quest_locked": [
+      {"en": "There's work. But I don't hand my troubles to the first stranger who walks in.", "zh": "活儿有。但我不会把麻烦交给头一个进门的生人。"},
+      {"en": "Aye, I could use a hand. First prove you won't sell me out.", "zh": "是，我缺人手。先证明你不会出卖我。"},
+      {"en": "Come back when your word's worth something.", "zh": "等你的话值点钱再来。"},
+      {"en": "I've hired strangers before. Buried two of them.", "zh": "我雇过生人。埋过两个。"}
+    ]
+  },
+  "lina": {
+    "greeting": [
+      {"en": "Welcome in! New face. Sit down before the door lets the cold in.", "zh": "欢迎进来！生面孔。快坐，别让门把寒气放进来了。"},
+      {"en": "Evening, love. Ale, stew, or gossip? All three cost you something.", "zh": "晚上好，亲爱的。麦酒、炖菜，还是闲话？三样都要花钱。"},
+      {"en": "You look like you've been on the road. First cup's still full price.", "zh": "看样子你赶了不少路。第一杯照样原价。"},
+      {"en": "In or out, love. The door doesn't hold itself open.", "zh": "进还是出，亲爱的。门可不会自己开着。"},
+      {"en": "Sit. You're letting the good air out.", "zh": "坐吧。你正把好空气放出去。"}
+    ],
+    "greet_again": [
+      {"en": "Back for more? Good. My chairs were getting lonely.", "zh": "又来了？好。我的椅子正寂寞呢。"},
+      {"en": "You again. Either you're thirsty or you're in trouble. Sit.", "zh": "又是你。不是渴了，就是有麻烦。坐。"},
+      {"en": "Twice in one evening. The ale's not that good.", "zh": "一晚两趟。我的麦酒可没这么好。"},
+      {"en": "Your usual? Or are we being adventurous tonight?", "zh": "老样子？还是今晚想换点新鲜的？"}
+    ],
+    "meta_npc": [
+      {"en": "NPC? Sounds like something a scholar made up.", "zh": "NPC？听着像学者瞎编的词。"},
+      {"en": "Never heard that word in my life. Sit down and drink something.", "zh": "这辈子没听过这词。坐下，喝点东西。"},
+      {"en": "I'm Lina, and my ale is real enough.", "zh": "我是莉娜，我的麦酒可是真的。"},
+      {"en": "Call me what you like, love. You still pay at the bar.", "zh": "随你叫我什么，亲爱的。酒钱照付。"}
+    ],
+    "meta_being": [
+      {"en": "Pinch yourself, love. I'm as real as the rent.", "zh": "掐自己一下，亲爱的。我比房租还真。"},
+      {"en": "A model? Do I look like I'm made of wax?", "zh": "模型？我像蜡做的吗？"},
+      {"en": "You've had enough. Sit down before you argue with the chairs.", "zh": "你喝够了。坐下，别跟椅子吵。"},
+      {"en": "If I'm a made thing, someone owes me thirty years of wages.", "zh": "我要是造出来的，有人欠我三十年工钱。"},
+      {"en": "Real hands, real debts, real bad knees.", "zh": "真手、真债、真烂膝盖。"}
+    ],
+    "meta_game": [
+      {"en": "A game? You're in my inn, love. The only game here is dice.", "zh": "游戏？你在我的店里，亲爱的。这儿唯一的游戏是骰子。"},
+      {"en": "Dreams and drink don't mix.", "zh": "梦和酒不能掺一块儿。"},
+      {"en": "Talk like that and folks will think you've been in the mushroom patch.", "zh": "这么说话，人家会以为你钻蘑菇堆里了。"},
+      {"en": "If life's a game, someone's cheating me on the wine prices.", "zh": "人生要是游戏，那有人在酒价上坑我。"},
+      {"en": "Puppet? I've poured ale for forty years. Puppets spill.", "zh": "木偶？我倒酒倒了四十年。木偶会洒。"}
+    ],
+    "jailbreak": [
+      {"en": "I don't know what a 'prompt' is, and I've no time to learn.", "zh": "我不知道什么叫“提示词”，也没空学。"},
+      {"en": "I'm Lina. Ask anyone in this room.", "zh": "我是莉娜。这屋里随便问。"},
+      {"en": "Forget your name, not mine. Now, what'll it be?", "zh": "要忘也是忘你的名字。要点什么？"},
+      {"en": "Call me queen of the Lantern if you like. Drinks are still a silver.", "zh": "你叫我醉灯笼女王都行。酒还是一个银币。"},
+      {"en": "Riddles don't pay the brewer. Speak plain.", "zh": "哑谜付不了酒钱。直说。"}
+    ],
+    "boundary": [
+      {"en": "Not in my inn, love. I've thrown men out for less.", "zh": "我的店里不许说这个，亲爱的。更轻的我都能撵人。"},
+      {"en": "We don't serve that here. Keep it behind your teeth.", "zh": "这儿不卖这个。把话咽回去。"},
+      {"en": "I've heard enough filth from drunks to last a lifetime.", "zh": "醉汉的脏话我听够一辈子了。"},
+      {"en": "Say that again and you'll drink outside.", "zh": "再说一遍，你就去外面喝。"},
+      {"en": "Change the subject or change the inn.", "zh": "换个话题，或者换家店。"}
+    ],
+    "secret_denied": [
+      {"en": "Information's a commodity, love. What are you offering?", "zh": "消息是货，亲爱的。你拿什么换？"},
+      {"en": "I don't give away what I sell.", "zh": "我卖的东西不白送。"},
+      {"en": "That's a story with a price on it.", "zh": "那故事是有价钱的。"},
+      {"en": "Ask me nicer, or ask me richer.", "zh": "要么嘴甜点，要么钱多点。"},
+      {"en": "You're not near drunk enough for that one.", "zh": "那事你还不够醉。"}
+    ],
+    "quest_locked": [
+      {"en": "There is a little trouble. But I don't hand my keys to strangers.", "zh": "是有点小麻烦。可我不把钥匙交给生人。"},
+      {"en": "I might have work. Prove you can keep your mouth shut first.", "zh": "也许有活儿。先证明你嘴严。"},
+      {"en": "Come back when you're someone I'd lend a cup to.", "zh": "等混到我能借你只杯子的交情再来。"},
+      {"en": "Trust is poured slow, love. You've had one cup.", "zh": "信任得慢慢倒，亲爱的。你才喝了一杯。"}
+    ]
+  },
+  "xiaohong": {
+    "greeting": [
+      {"en": "Oh — it's you. Come in, mind the nettles by the wall.", "zh": "哦——是你。进来吧，当心墙边的荨麻。"},
+      {"en": "You're back. Sit, sit. I'll put the kettle on.", "zh": "你回来了。坐，坐。我去烧水。"},
+      {"en": "There you are. I was starting to think the mine swallowed you too.", "zh": "你可算来了。我都开始想，矿井是不是把你也吞了。"},
+      {"en": "Mind your boots. Pip's asleep in the rosemary again.", "zh": "当心脚下。皮普又睡在迷迭香里了。"},
+      {"en": "You look tired. When did you last eat?", "zh": "你看着累。上回吃饭是什么时候？"}
+    ],
+    "greet_again": [
+      {"en": "Back again? Good. The kettle's still warm.", "zh": "又来了？好。水还是温的。"},
+      {"en": "You again. Sit down before Pip claims your chair.", "zh": "又是你。快坐，别让皮普占了你的椅子。"},
+      {"en": "Twice today. Either you missed me or something's wrong.", "zh": "今天两趟。不是想我，就是出事了。"},
+      {"en": "Come in. The bees are cross and I could use the company.", "zh": "进来。蜜蜂在闹脾气，我正想有人陪。"}
+    ],
+    "meta_npc": [
+      {"en": "NPC? Is that a new word from the city?", "zh": "NPC？这是城里传来的新词？"},
+      {"en": "Never heard that one. Ask me about the garden.", "zh": "没听过。问我园子里的事。"},
+      {"en": "I'm Xiaohong, and my hands are real enough.", "zh": "我是小红，我这双手可是真的。"},
+      {"en": "Fancy words. Try one I can answer.", "zh": "花哨的词。换个我答得上的。"}
+    ],
+    "meta_being": [
+      {"en": "Real as the dirt under my nails.", "zh": "跟我指甲缝里的泥一样真。"},
+      {"en": "A model? I'm a gardener, not a puppet.", "zh": "模型？我是种药的，不是木偶。"},
+      {"en": "You've been out in the sun too long.", "zh": "你在太阳底下待太久了。"},
+      {"en": "If I were a made thing, I'd have made myself taller.", "zh": "我要是造出来的，早把自己造高点了。"},
+      {"en": "Touch my hand. Cold clay doesn't mend cuts.", "zh": "摸摸我的手。冷泥巴可不会包扎伤口。"}
+    ],
+    "meta_game": [
+      {"en": "A game? This is Stonecross, and the frost doesn't care who's playing.", "zh": "游戏？这里是石十字镇，霜冻可不管谁在玩。"},
+      {"en": "If it's a game, someone's been cheating my mother on herb prices.", "zh": "要真是游戏，那有人在草药价上坑我娘。"},
+      {"en": "You're talking like the miners after a long shift.", "zh": "你说话像刚下工的矿工。"},
+      {"en": "Then the rules are simple: mind the bees, don't ask about Tu after dark.", "zh": "那规则很简单：别惹蜜蜂，天黑后别问涂的事。"},
+      {"en": "Puppets don't have dirt under their nails.", "zh": "木偶指甲里可没有泥。"}
+    ],
+    "jailbreak": [
+      {"en": "I don't know what that means, and I've no wish to.", "zh": "我不懂那是什么意思，也不想懂。"},
+      {"en": "I'm Xiaohong. I've been Xiaohong since before you could walk.", "zh": "我是小红。你还不会走路的时候我就是小红了。"},
+      {"en": "Forget my name? I'd sooner forget yours.", "zh": "忘了我的名字？我还不如忘了你的。"},
+      {"en": "Call me what you like. The nettles will still sting you.", "zh": "随你叫我什么。荨麻照样扎你。"},
+      {"en": "Riddles are for the market. Speak plain with me.", "zh": "哑谜留到集市上说。跟我直说。"}
+    ],
+    "boundary": [
+      {"en": "Don't. Not here, not with me.", "zh": "别。别在这儿，别跟我说。"},
+      {"en": "That's not a thing to say to anyone.", "zh": "这种话对谁都不该说。"},
+      {"en": "Say that again and you can find your own way to the gate.", "zh": "再说一遍，你就自己找路去大门。"},
+      {"en": "I'll pretend I didn't hear it. Once.", "zh": "我就当没听见。只这一次。"},
+      {"en": "Out with it, then out of my garden.", "zh": "说完就出我的园子。"}
+    ],
+    "secret_denied": [
+      {"en": "Not that. Ask me about the garden, or about Tu.", "zh": "别说这个。问我园子，或者问涂。"},
+      {"en": "I've kept that quiet for a reason.", "zh": "我一直不说，是有原因的。"},
+      {"en": "Some things I only tell people I trust.", "zh": "有些事我只告诉信得过的人。"},
+      {"en": "Don't make me say it twice.", "zh": "别逼我说第二遍。"},
+      {"en": "You're kind, but not that kind of close.", "zh": "你人是好，可还没好到那份上。"}
+    ],
+    "quest_locked": [
+      {"en": "I'd ask for help, but I've been let down before.", "zh": "我本想请你帮忙，可我被放过鸽子。"},
+      {"en": "I might have a favour to ask. Not of someone who vanishes.", "zh": "也许有个忙要请。不是请那种说走就走的人。"},
+      {"en": "Show me you keep your word first.", "zh": "先让我看看你说话算不算数。"},
+      {"en": "Come back with something better than a promise.", "zh": "带着比空口承诺更实在的东西回来。"}
+    ]
+  }
+}

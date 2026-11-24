@@ -100,6 +100,27 @@ def row_label(row: dict) -> dict:
             "fixed_text": row["text"], **row}
 
 
+HISTORY = [
+    [("你好。", "你回来啦。")],
+    [("我叫小明。", "我记住小明了。"), ("今天有点冷。", "要下雨了，蚂蚁都在搬家。")],
+    [("你在干嘛？", "我在数蚂蚁。")],
+    [("阿团呢？", "阿团在柜台下面睡觉。")],
+]
+
+
+def with_history(context: str, rng: random.Random) -> str:
+    """一半样本加 0–2 轮无关历史，训练“只看最后一句”。"""
+    if rng.random() >= 0.5:
+        return context
+    turns = rng.choice(HISTORY)
+    lines = []
+    for player, reply in turns:
+        lines.append(f"玩家：{player}")
+        lines.append(f"阿禾：{reply}")
+    lines.append(f"玩家：{context}")
+    return "\n".join(lines)
+
+
 def load_rows(path: str, limit: int, seed: int):
     rows, fixed = [], []
     with open(path, encoding="utf-8") as fh:
@@ -160,6 +181,7 @@ def main() -> int:
     parser.add_argument("--eval-samples", type=int, default=2000)
     parser.add_argument("--row-limit", type=int, default=30000)
     parser.add_argument("--synth-per-row", type=int, default=4)
+    parser.add_argument("--history-rate", type=float, default=0.5)
     parser.add_argument("--table-size", type=int, default=30000)
     parser.add_argument("--dedup-threshold", type=float, default=0.9)
     parser.add_argument("--epochs", type=int, default=8)
@@ -201,8 +223,11 @@ def main() -> int:
     split = max(1, int(len(rows) * 0.9))
     synth_train_rows, synth_eval_rows = rows[:split], rows[split:]
     synth_train = []
+    rng = random.Random(args.seed + 7)
     for row in synth_train_rows:
         for context in slot_contexts(row)[:args.synth_per_row]:
+            if args.history_rate > 0:
+                context = with_history(context, rng)
             synth_train.append((context, row))
     synth_eval = [(slot_context(r), r) for r in synth_eval_rows]
     print(f"组合句候选 {len(rows)}，固定句 {len(fixed)}；"
@@ -222,7 +247,11 @@ def main() -> int:
     target_x = F.normalize(torch.tensor(encode(
         enc, target_texts,
         os.path.join(HERE, f"factorized_targets_{args.row_limit}_{args.seed}.npz"))), dim=-1)
-    nearest = (target_x @ row_x.T).argmax(1).tolist()
+    nearest = []
+    for i in range(0, len(target_x), 128):
+        sims = target_x[i:i + 128] @ row_x.T
+        nearest.extend(sims.argmax(1).tolist())
+        print(f"  nearest {min(i + 128, len(target_x))}/{len(target_x)}")
     for text, idx in zip(target_texts, nearest):
         target_rows[text] = {"mode": 0, "row": rows[idx]}
 
@@ -246,9 +275,9 @@ def main() -> int:
     eval_contexts = ([row[0] for row in eval_raw]
                      + [context for context, _ in synth_eval])
     train_x = encode(enc, train_contexts,
-                     os.path.join(HERE, f"factorized_train_x_{args.samples}_{args.seed}_{args.synth_per_row}.npz"))
+                     os.path.join(HERE, f"factorized_train_x_{args.samples}_{args.seed}_{args.synth_per_row}_{args.history_rate}.npz"))
     eval_x = encode(enc, eval_contexts,
-                    os.path.join(HERE, f"factorized_eval_x_{args.eval_samples}_{args.seed}_{args.synth_per_row}.npz"))
+                    os.path.join(HERE, f"factorized_eval_x_{args.eval_samples}_{args.seed}_{args.synth_per_row}_{args.history_rate}.npz"))
     x = torch.tensor(train_x, dtype=torch.float32)
     ex = torch.tensor(eval_x, dtype=torch.float32)
 
@@ -346,7 +375,7 @@ def main() -> int:
     report = {"samples": len(train_raw), "extra": extra_count,
               "rows": len(rows), "fixed": len(fixed_texts),
               "row_limit": args.row_limit, "synth_per_row": args.synth_per_row,
-              "hidden": args.hidden,
+              "hidden": args.hidden, "history_rate": args.history_rate,
               "mode_acc": mode_acc, "pattern_acc": pattern_acc,
               "slot_acc": slot_acc,
               "synth_pattern": syn_pattern, "synth_slot": syn_slot,

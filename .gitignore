@@ -3,3 +3,7 @@ __pycache__/
 bank_runtime.json
 expertnet/checkpoint.pt
 expertnet/metrics.json
+expertnet/ablation.json
+expertnet/atoms.pt
+expertnet/atoms_metrics.json
+expertnet/_smoke*

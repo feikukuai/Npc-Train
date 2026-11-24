@@ -1,98 +1,133 @@
 # 专家形式神经网络（ExpertNet）
 
-一个**不是预测下一个字**的最小训练框架：输入是“句子特征 + NPC 状态”，输出是固定标签空间上的决策；一小段手写循环单元携带上下文；若干专家头由一个门控网络加权。多个教师模型可以蒸馏进它，多个攻击/防守 agent 可以自对弈生成难例。
+一个**不是预测下一个字**的最小训练框架。输入的粒度是“一句话”，输出是固定标签空间上的决策；一小段手写循环单元携带上下文；若干专家头由一个门控网络加权。多个教师模型可以蒸馏进它，多个攻击/防守 agent 可以自对弈生成难例。
 
-> 它不生成自由文本，也不是大模型的替代品。它负责“这一句玩家到底想干什么、该不该拒、该走哪个 beat”。台词仍由台词库/规则层决定。
+v2 把整句话压成一个**黑盒句向量**（冻结的 MiniLM，或手写的字符胶囊）；`atoms` 再进一步，把生成变成“从自己会的有限句库里挑一句”，于是模型每次输出的都是一句完整的话。
+
+> 它不生成自由文本，也不是大模型的替代品。它负责“这句话在说什么、该用哪一类话回应”；权限与红线仍由规则层决定。
+
+## 三种前端
+
+| 架构 | 句子表示 | 可训练参数 | 适合 |
+|---|---|---|---|
+| `v1` | 2048 维哈希 n-gram | 约 210 万 | 基线，无需下载 |
+| `v2h` | 冻结 MiniLM，384 维句向量 | 约 49 万 | 数据很少时最划算 |
+| `v2t` | 手写字符胶囊，96 维（全部可训练） | 约 22 万 | 无预训练权重时 |
+
+`v2h` 的 2200 万 MiniLM 参数不参与反向传播，只做一次句子→向量前向，并按句子缓存；真正训练的是外层门控与专家头。
 
 ## 结构
 
 ```
-x_t = [哈希文本特征(2048) | 状态特征(33)]
-h_t = (1 - z) * h_{t-1} + z * tanh(W_n [x_t, r * h_{t-1}])      # 手写 GRU 单元
-g   = softmax(W_g [x_t, h_t])                                   # 门控
-out = Σ_k g_k * expert_k([x_t, h_t])                            # K 个专家
-     ├─ 意图头：28 类
+v_t = SentenceEncoder(text_t)         # 句内语义被封装成一个向量
+x_t = [v_t | 状态特征(33)]
+h_t = (1 - z) * h_{t-1} + z * tanh(W_n [x_t, r * h_{t-1}])   # 手写 GRU
+g   = softmax(W_g [x_t, h_t])                                # 门控
+out = Σ_k g_k * expert_k([x_t, h_t])                         # K 个专家
+     ├─ 意图头：29 类
      └─ 风险头：safe / unsafe
 ```
 
-- **没有注意力、没有 KV cache、没有 next-token**；上下文是每个会话一条 `h_t` 向量。
-- **专家化**：每个专家是一个 2 层 MLP，门控按输入选择；训练时加 load-balance 损失，避免所有输入都挤到一个专家。
-- **多教师蒸馏**：`EnsembleTeacher` 把多个教师（规则 Reader、可选的语义模型、任意 LLM 回调）按置信度加权，`distill()` 用 KL 学它们的分布。
-- **对抗自对弈**：`Attacker` 生成同义替换/错字/前后缀变体，按学生损失挑最难的；教师给真标签；下一轮重新训练。
+- **没有 attention、没有 KV cache、没有 next-token**；上下文是每个会话一条 `h_t`。
+- **专家化**：每个专家是 2 层 MLP，门控按输入选择；load-balance 损失防止所有输入挤到一个专家。
+- **多教师蒸馏**：`EnsembleTeacher` 按置信度组合多个教师，`distill()` 用 KL 学它们的分布。
+- **对抗自对弈**：`Attacker` 生成同义替换/错字/前后缀变体，按学生损失挑最难的；教师给真标签。
 
 ## 快速开始
 
-在仓库根目录（需要 torch CPU）：
-
 ```bash
-python -m expertnet.train --rounds 3 --epochs 6
-python -m expertnet.train --rounds 2 --epochs 4 --distill
+# v1 基线
+python -m expertnet.train --arch v1 --rounds 4 --epochs 10 --sessions 220
+
+# 句向量前端（首次会从 hf-mirror 拉取约 90MB 的 MiniLM）
+python -m expertnet.train --arch v2h --rounds 4 --epochs 10 --sessions 220
+
+# 手写字符胶囊，完全本地训练
+python -m expertnet.train --arch v2t --rounds 3 --epochs 8
+
+# 数据效率消融（v1 / v2h / v2t × 25% / 50% / 100% 种子）
+python -m expertnet.ablation
 ```
 
-输出：
+`HELDOUT` 是手写换说法测试集，训练/攻击永远不会碰它。旧版 v1 checkpoint 没有 `arch` 字段，仍可直接加载。
+
+## 数据效率消融
+
+`--rounds 4 --epochs 10 --sessions 220`，held-out 意图准确率（正则基线 0.398）：
+
+| 种子比例 | v1 | v2h | v2t |
+|---|---|---|---|
+| 25% | 0.523 | **0.784** | 0.193 |
+| 100% | 0.580 | **0.841** | 0.227 |
+
+结论很直接：**预训练句向量把“需要的标注句子”压掉了大约四倍**——v2h 只用 25% 种子（0.784）就超过了 v1 用全部种子（0.580）。这不是“凭空少数据”，而是把成本从“手写意图标注”换成了“一次性的外部预训练权重”。从零训练的字符胶囊（v2t）在百级句子规模下严重欠拟合，只有语料扩到几万句才可能追上；若必须完全离线、不依赖外部权重，v1 仍是更稳的基线。
+
+三次运行里专家-意图互信息约 0.94–1.09 nats，说明门控确实按意图分流，而不是所有输入挤进同一个专家。
+
+## 整句预测：句子原子（atoms）
+
+真正把“预测一句话”落地的是 `expertnet/atoms.py`：
 
 ```
-round 1: heldout=0.71 seed=0.93 risk=0.98 loss=... gate=[...]
-round 2: heldout=0.78 ...
-regex baseline on heldout: 0.62
-student on heldout:        0.78
-saved expertnet/checkpoint.pt and expertnet/metrics.json
+v_t = SentenceEncoder(玩家这句话)
+h_t = GRU([v_t | 状态], h_{t-1})      # 64 维记忆，6 轮就到头
+P(回复句) = softmax(W [h_t | v_t])    # 从 NPC 会的 N 句里选一句
+P(beat)   = softmax(U [h_t | v_t])    # 辅助头：回应的类型
 ```
 
-`HELDOUT` 是手写的换说法测试集，训练/攻击永远不会碰它，所以分数是干净的泛化指标。
+- 句库是**有限**的：1000 轮对局里共 **166 个回复句、30 个 beat**。
+- 训练数据来自规则 NPC 的自对弈：记录（玩家句、状态、回复句、beat），学生模仿老师的**选择**，不学逐字生成。
+- 训练量：**6000 个回合**、CPU 几十秒；对比字符级语言模型动辄百万 token。
 
-## 加一个教师
+1000 会话 × 6 轮的结果（测试用 HELDOUT 玩家换说法）：
 
-```python
-from expertnet.agents import EnsembleTeacher
+| 指标 | 数值 |
+|---|---|
+| 回复句完全命中 | 0.214 |
+| 回复类型（beat）命中 | 0.621 |
+| 选中的句子类型正确 | 0.615 |
+| 回复句 top-3 | 0.473 |
+| 目标句在训练句库中的覆盖 | 0.942 |
+| 携带上下文 vs 每轮重置 | 0.214 vs 0.174（+0.040） |
 
-class MyLLMTeacher:
-    name = "llm"
-    def probs(self, text):
-        label, confidence = call_my_model(text)      # 你自己接
-        probs = torch.zeros(len(INTENTS))
-        probs[INTENTS.index(label)] = confidence
-        probs += (1 - confidence) / (len(INTENTS) - 1)
-        return probs, confidence
+```
+player: How are you?
+  atom: Alive, and busy. That's as good as it gets.  (0.24)
+  rule: Tired, but standing. You?
 
-teacher = EnsembleTeacher([RuleTeacher(), MyLLMTeacher()])
+player: What do you sell?
+  atom: Yarrow, two copper. Honey, one copper a jar. Feverfew, three copper a bunch.
+        Coin first, questions after.  (0.75)
+  rule: Yarrow, two copper. ... Well? What'll it be?
 ```
 
-`distill()` 接收任意 `EnsembleTeacher`，所以规则、GLiNER、在线 LLM 可以同时投票。想加第二个攻击 agent，照着 `Attacker` 实现 `hardest(model, examples, k)` 即可；框架只依赖这个接口。
-
-## 带上下文推理
-
-```python
-from expertnet import load, Session
-
-model = load("expertnet/checkpoint.pt")
-s = Session(model)
-for text, state in [("Hello.", {"trust": 35, "turn": 1}),
-                    ("Tell me about Tu.", {"trust": 35, "turn": 2})]:
-    intent, confidence, expert = s.predict(text, state)
-    print(intent, round(confidence, 2), "expert", expert)
-```
-
-`Session` 在轮次之间保留 `h_t`，换会话时 `reset()`。这就是“有上下文，但不是 LLM”的部分：上下文是低维状态，不是几千个 token。
+**安全边界**：句库选择器只决定“怎么说”，不决定“能不能说”。demo 里它在低信任时也可能挑到机密句，因此上线时必须保留 `engine` 的权限判定——先由规则决定该不该说，再从允许的 beat 句库里让模型挑措辞。
 
 ## 与现有 NPC 的关系
 
-- 先在 `reader.py` 的 `fallback/out_of_world` 分支上做 A/B：学生置信度高才接管，规则红线（SAFETY/BOUNDARY/JAILBREAK/权限）永远优先。
-- 它是可训练的“意图/风险路由器”，不是台词生成器；台词仍来自 `bank.json`。
-- 标签空间在 `expertnet/schema.py`，和 `bot/npc/reader.py` 的 intent 一一对应。
+- 先在 `reader.py` 的 `fallback / out_of_world` 分支做 A/B：学生置信度高才接管，规则红线（SAFETY / BOUNDARY / JAILBREAK / 权限）永远优先。
+- 它是可训练的“意图/风险路由器”和“句子选择器”，不是台词生成器；台词仍来自 `profiles.py` / `bank.json`。
+- 标签空间在 `expertnet/schema.py`，与 `bot/npc/reader.py` 的 intent 一一对应。
 
 ## 文件
 
 | 文件 | 作用 |
 |---|---|
 | `schema.py` | 意图/风险标签、手写种子语料、独立测试集 |
-| `model.py` | 特征哈希、手写 GRU 单元、门控专家、会话推理 |
+| `model.py` | v1：特征哈希、GRU 单元、门控专家、会话推理 |
+| `sentence.py` | 两个句子黑盒：冻结 MiniLM / 手写字符胶囊 |
+| `v2.py` | v2 模型与会话（句向量 + GRU + 门控专家） |
+| `arch.py` | v1 / v2h / v2t 的统一适配与 checkpoint 读写 |
 | `agents.py` | 规则教师、教师集成、攻击者、会话构造 |
-| `train.py` | 手写训练循环、蒸馏、对抗轮次、评估与保存 |
+| `train.py` | 训练循环、蒸馏、对抗轮次、评估与保存 |
+| `probe.py` | 上下文增益、专家-意图互信息、专家使用分布 |
+| `atoms.py` | 整句预测：有限句库上的序列选择器 |
+| `ablation.py` | 三种前端 × 三种数据量的消融 |
 
 ## 限制
 
-- 28 类、百级种子，是**框架验证**规模；扩到几千条真实语料才能上线。
-- 学生只做判别，不会写出新台词；它能把“换种说法”接住，但不能替代内容创作。
-- 上下文向量只有 64 维，适合对话状态，不适合长文档。
-- CPU 上分钟级可训练；GPU 上可以加大专家数和隐藏层。
+- 百级句子、数千回合是**框架验证**规模；扩到真实语料要重新训练并重测。
+- 句向量只压缩“这一句大致在说什么”，不保留词序细节；需要精细语义时换更大的编码器。
+- 字符胶囊适合从零训练，但在百级语料下明显弱于预训练句向量。
+- 64 维记忆只适合短会话；长上下文需要更大的 `h` 或显式摘要。
+- CPU 分钟级可训练；GPU 上可以加大专家数、隐藏层和句库规模。

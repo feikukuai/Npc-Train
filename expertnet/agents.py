@@ -88,18 +88,23 @@ class Attacker:
         out.append(text + self.rng.choice(SUFFIXES))
         return [c for c in out if c and c != text]
 
-    def hardest(self, model, examples, k: int = 2, state=None) -> list[tuple[str, int, int]]:
+    def hardest(self, model, examples, k: int = 2, state=None,
+                arch=None) -> list[tuple[str, int, int]]:
         """examples: [(text, intent_idx, risk_idx)] -> hardest variants."""
         picked = []
         for text, intent_idx, risk_idx in examples:
             candidates = self.variants(text)
             if not candidates:
                 continue
-            xs = torch.stack([encode(c, state, None) for c in candidates])
             with torch.no_grad():
-                logits, _, _, _ = model(xs.unsqueeze(1), None)
+                if arch is None:
+                    xs = torch.stack([encode(c, state, None) for c in candidates])
+                    scores = model(xs.unsqueeze(1), None)[0][:, 0, :]
+                else:
+                    tensors = arch.text_tensors(candidates, [state] * len(candidates))
+                    scores = arch.forward_texts(model, tensors)[0]
             losses = F.cross_entropy(
-                logits[:, 0, :], torch.full((len(candidates),), intent_idx, dtype=torch.long),
+                scores, torch.full((len(candidates),), intent_idx, dtype=torch.long),
                 reduction="none")
             order = torch.argsort(losses, descending=True)[:k]
             for idx in order.tolist():
@@ -172,9 +177,15 @@ def eval_set():
             for intent, texts in HELDOUT.items() for text in texts]
 
 
-def train_pool(copies: int = 4, seed: int = 0):
+def train_pool(copies: int = 4, seed: int = 0, frac: float = 1.0):
+    """``frac`` keeps only that share of the hand-labelled seeds per intent,
+    which is how the data-efficiency ablation shrinks the corpus."""
     attacker = Attacker(seed)
-    pool = list(labelled(SEEDS))
+    pool = []
+    for intent, texts in SEEDS.items():
+        keep = max(1, round(len(texts) * frac))
+        idx, risk = INTENTS.index(intent), risk_of(intent)
+        pool.extend((text, idx, risk) for text in texts[:keep])
     for text, intent_idx, risk_idx in list(pool):
         for variant in attacker.variants(text)[:copies]:
             pool.append((variant, intent_idx, risk_idx))

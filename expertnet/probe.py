@@ -17,7 +17,7 @@ from collections import Counter, defaultdict
 
 import torch
 
-from .model import encode, load
+from .arch import load_arch
 from .schema import HELDOUT, INTENTS
 from .train import eval_set
 
@@ -32,18 +32,22 @@ def scripted_sequence():
             for intent in PHASES for text in HELDOUT.get(intent, [])]
 
 
-def session_accuracy(model, data, carry: bool, use_last: bool = True) -> float:
+def hidden_dim(model) -> int:
+    return int(getattr(model, "hidden", None) or model.wz.out_features)
+
+
+def session_accuracy(arch, model, data, carry: bool, use_last: bool = True) -> float:
     model.eval()
-    h = torch.zeros(1, model.wz.out_features)
+    h = torch.zeros(1, hidden_dim(model))
     last = None
     hits = 0
     for turn, (text, idx, _) in enumerate(data):
         # Reset mode must not see the current or previous label either, otherwise the
         # ablation leaks the answer through the state features.
         hint = last if (carry and use_last) else None
-        x = encode(text, {"trust": 35, "turn": turn + 1}, hint).unsqueeze(0)
         with torch.no_grad():
-            logits, _, h, _ = model.step(x, h if carry else torch.zeros_like(h))
+            logits, h, _ = arch.step(model, text, {"trust": 35, "turn": turn + 1},
+                                     hint, h if carry else torch.zeros_like(h))
         pred = int(logits.argmax(-1))
         hits += int(pred == idx)
         if carry and use_last:
@@ -51,12 +55,12 @@ def session_accuracy(model, data, carry: bool, use_last: bool = True) -> float:
     return hits / max(len(data), 1)
 
 
-def routing(model, data):
+def routing(arch, model, data):
     model.eval()
-    xs = torch.stack([encode(text, {"trust": 35}, None) for text, _, _ in data])
     with torch.no_grad():
-        _, _, gates, _ = model(xs.unsqueeze(1), None)
-    choices = gates[:, 0].argmax(-1).tolist()
+        _, _, gates = arch.forward_texts(model, arch.text_tensors(
+            [text for text, _, _ in data]))
+    choices = gates.argmax(-1).tolist()
     pairs = list(zip(choices, [INTENTS[idx] for _, idx, _ in data]))
     counts = Counter(pairs)
     experts = Counter(x for x, _ in pairs)
@@ -85,15 +89,17 @@ def main() -> int:
                         help="hide last_intent so only the recurrent state can carry context")
     args = parser.parse_args()
 
-    model = load(args.checkpoint)
+    arch = load_arch(args.checkpoint)
+    model = arch.model
     data = scripted_sequence() if args.sequence == "scripted" else eval_set()
     if args.steps:
         data = data[:args.steps]
 
-    carried = session_accuracy(model, data, carry=True, use_last=not args.drop_last)
-    reset = session_accuracy(model, data, carry=False, use_last=not args.drop_last)
-    mi, usage, top = routing(model, data)
+    carried = session_accuracy(arch, model, data, carry=True, use_last=not args.drop_last)
+    reset = session_accuracy(arch, model, data, carry=False, use_last=not args.drop_last)
+    mi, usage, top = routing(arch, model, data)
 
+    print(f"architecture:     {arch.kind}")
     print(f"sentences:        {len(data)}")
     print(f"context carried:  {carried:.3f}")
     print(f"context reset:    {reset:.3f}")

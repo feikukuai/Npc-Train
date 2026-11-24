@@ -34,3 +34,6 @@ expertnet/_smoke*
 !expertnet/zh/adversarial.jsonl
 !expertnet/zh/adversarial_report.json
 expertnet/zh/bank_report.json
+expertnet/zh/factorized*.pt
+expertnet/zh/factorized_*.npz
+expertnet/zh/factorized_report.json

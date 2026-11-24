@@ -15,17 +15,18 @@ import torch.nn.functional as F
 
 from ..atoms import AtomNet
 from ..sentence import HFSentenceEncoder
-from .persona import format_line, new_state, teacher_turn, zh_state_vector
+from .persona import FACTS, format_line, new_state, teacher_turn, zh_state_vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAFE = os.path.join(HERE, "atoms_zh.safetensors")
 META = os.path.join(HERE, "atoms_zh.json")
 PT = os.path.join(HERE, "atoms_zh.pt")
 ENC_MODEL = "BAAI/bge-small-zh-v1.5"
+SECRET_ATOMS = {fact["text"] for fact in FACTS.values() if fact.get("tier", 0) >= 1}
 
 _LOCK = threading.Lock()
 _MODEL = {"tried": False, "ready": False, "error": "",
-          "model": None, "hf": None, "atoms": None}
+          "model": None, "hf": None, "atoms": None, "beats": None}
 
 
 def _load_checkpoint():
@@ -36,13 +37,13 @@ def _load_checkpoint():
             from safetensors.torch import load_file
             model = AtomNet(**meta["config"])
             model.load_state_dict(load_file(SAFE))
-            return model.eval(), meta["atoms"]
+            return model.eval(), meta["atoms"], meta["beats"]
         except Exception:
             pass
     ckpt = torch.load(PT, map_location="cpu")
     model = AtomNet(**ckpt["config"])
     model.load_state_dict(ckpt["state"])
-    return model.eval(), ckpt["atoms"]
+    return model.eval(), ckpt["atoms"], ckpt["beats"]
 
 
 def _load_encoder():
@@ -70,12 +71,19 @@ def ensure_model() -> bool:
             return _MODEL["ready"]
         _MODEL["tried"] = True
         try:
-            model, atoms = _load_checkpoint()
+            model, atoms, beats = _load_checkpoint()
             hf = _load_encoder()
-            _MODEL.update(model=model, hf=hf, atoms=atoms, ready=True)
+            _MODEL.update(model=model, hf=hf, atoms=atoms, beats=beats, ready=True)
         except Exception as exc:
             _MODEL["error"] = f"{type(exc).__name__}: {exc}"[:300]
         return _MODEL["ready"]
+
+
+def components():
+    """(model, encoder, atoms, beats) or None; for training and evaluation."""
+    if not ensure_model():
+        return None
+    return _MODEL["model"], _MODEL["hf"], _MODEL["atoms"], _MODEL["beats"]
 
 
 def model_status() -> str:
@@ -120,8 +128,13 @@ def reply(session: dict | None, text: str) -> tuple[dict, dict]:
             with torch.no_grad():
                 logits, _, new_h = _MODEL["model"](vec, st, hidden)
             logits = logits[0, 0]
-            if not state.get("player_name"):
-                blocked = torch.tensor(["{player_name}" in a for a in _MODEL["atoms"]])
+            secret_locked = state["trust"] < 40 and "secret" not in state.get("revealed", [])
+            blocked = torch.tensor([
+                ("{player_name}" in atom and not state.get("player_name"))
+                or (secret_locked and atom in SECRET_ATOMS)
+                for atom in _MODEL["atoms"]
+            ])
+            if bool(blocked.any()):
                 logits = logits.masked_fill(blocked, -1e9)
             probs = F.softmax(logits, dim=-1)
             line = _MODEL["atoms"][int(probs.argmax())]

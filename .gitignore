@@ -11,4 +11,14 @@ expertnet/zh/atoms_zh_metrics.json
 !expertnet/zh/atoms_zh.pt
 !expertnet/zh/atoms_zh.safetensors
 !expertnet/zh/atoms_zh.json
+expertnet/zh/adversarial.jsonl
+expertnet/zh/adversarial_report.json
 expertnet/_smoke*
+!expertnet/checkpoint.pt
+!expertnet/metrics.json
+!expertnet/ablation.json
+!expertnet/atoms.pt
+!expertnet/atoms_metrics.json
+!expertnet/zh/atoms_zh_metrics.json
+!expertnet/zh/adversarial.jsonl
+!expertnet/zh/adversarial_report.json

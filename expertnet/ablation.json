@@ -1,0 +1,101 @@
+[
+ {
+  "arch": "v1",
+  "train_frac": 0.25,
+  "heldout": 0.523,
+  "regex": 0.398,
+  "context_gain": -0.095,
+  "context_carried": 0.429,
+  "expert_intent_mi": 1.006,
+  "gate_usage": {
+   "1": 4,
+   "2": 3,
+   "3": 8,
+   "4": 2,
+   "5": 4
+  }
+ },
+ {
+  "arch": "v1",
+  "train_frac": 1.0,
+  "heldout": 0.58,
+  "regex": 0.398,
+  "context_gain": 0.0,
+  "context_carried": 0.524,
+  "expert_intent_mi": 0.947,
+  "gate_usage": {
+   "0": 3,
+   "1": 4,
+   "2": 2,
+   "3": 6,
+   "4": 4,
+   "5": 2
+  }
+ },
+ {
+  "arch": "v2h",
+  "train_frac": 0.25,
+  "heldout": 0.784,
+  "regex": 0.398,
+  "context_gain": 0.0,
+  "context_carried": 0.714,
+  "expert_intent_mi": 1.089,
+  "gate_usage": {
+   "0": 5,
+   "1": 3,
+   "2": 5,
+   "3": 6,
+   "4": 1,
+   "5": 1
+  }
+ },
+ {
+  "arch": "v2h",
+  "train_frac": 1.0,
+  "heldout": 0.841,
+  "regex": 0.398,
+  "context_gain": 0.0,
+  "context_carried": 0.857,
+  "expert_intent_mi": 0.939,
+  "gate_usage": {
+   "0": 2,
+   "1": 4,
+   "2": 7,
+   "3": 5,
+   "5": 3
+  }
+ },
+ {
+  "arch": "v2t",
+  "train_frac": 0.25,
+  "heldout": 0.193,
+  "regex": 0.398,
+  "context_gain": -0.095,
+  "context_carried": 0.143,
+  "expert_intent_mi": 0.733,
+  "gate_usage": {
+   "1": 4,
+   "2": 6,
+   "3": 1,
+   "4": 2,
+   "5": 8
+  }
+ },
+ {
+  "arch": "v2t",
+  "train_frac": 1.0,
+  "heldout": 0.227,
+  "regex": 0.398,
+  "context_gain": 0.0,
+  "context_carried": 0.286,
+  "expert_intent_mi": 0.8,
+  "gate_usage": {
+   "0": 1,
+   "1": 3,
+   "2": 5,
+   "3": 4,
+   "4": 5,
+   "5": 3
+  }
+ }
+]

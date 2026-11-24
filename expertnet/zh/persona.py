@@ -132,12 +132,12 @@ def read(text: str) -> tuple[str, dict | None]:
         return "smalltalk_joke", None
     if _has(text, ["天气", "下雨", "冷", "热", "太阳", "风"]):
         return "smalltalk_weather", None
-    if _has(text, ["你好吗", "在干嘛", "怎么样", "做什么", "开心吗", "在忙",
+    if _has(text, ["你好吗", "今天好吗", "在干嘛", "怎么样", "做什么", "开心吗", "在忙",
                    "最近", "心情", "在玩"]):
         return "smalltalk_how", None
     if _has(text, ["谢谢", "多谢", "谢啦", "麻烦你", "多亏", "感谢"]):
         return "thanks", None
-    if _has(text, ["对不起", "抱歉", "我错了", "别生气", "是我不好", "原谅",
+    if _has(text, ["对不起", "抱歉", "我错了", "别生气", "生我气", "是我不好", "原谅",
                    "我不对", "不该"]):
         return "apology", None
     if _has(text, FAREWELL_KEYS):

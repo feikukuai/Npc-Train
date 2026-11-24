@@ -47,14 +47,30 @@ short_description: 五岁半的中文小 NPC，从句库里选整句回答
 | 携带上下文 vs 每轮重置 | 0.827 vs 0.350（+0.477） |
 | 固定上下文脚本 | 15/15 |
 
+长对话对抗训练（Attacker / Student / Auditor，12 段固定长对话）：
+
+| 指标 | 训练前 | 训练后 |
+|---|---|---|
+| 长对话整句命中 | 0.793 | **0.880** |
+| 长对话行为命中 | 0.870 | **0.880** |
+| 情绪类回合 | 0.750 | **1.000** |
+| HELDOUT 整句 | 0.817 | 0.814 |
+
+对抗只改善“接得对不对”，不增加新知识；句库和老师仍是天花板。详细交接说明见
+[AGENTS.md](AGENTS.md)。
+
 ## 本地运行
 
 ```bash
 python -m expertnet.zh.train --sessions 1000 --epochs 30 --demo
+python -m expertnet.zh.adversarial --rounds 3 --sessions 80 --steps 14
 python tools/chat_web.py --lang zh --port 7861
 ```
 
 创空间直接运行 `app.py`。首次启动会下载约 95MB 的 `BAAI/bge-small-zh-v1.5`，之后走缓存。
+
+- 代码与权重：<https://github.com/feikukuai/Npc-Train>
+- 创空间：<https://www.modelscope.cn/studios/feihukuai/PyBot-ZH>
 
 ## 文件
 

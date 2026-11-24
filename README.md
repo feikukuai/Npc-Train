@@ -24,8 +24,10 @@ short_description: 铁匠 Grom、老板娘 Lina 与小红，三位规则驱动�
 ```
 
 - 决定“说什么”的是 `bot/npc/` 的确定性规则：身份、交易、传闻、任务、秘密分层。
-- **台词库**：186 条离线写好的同义台词（英文 + 中文），运行时只做一次查表。
+- **台词库**：234 条离线写好的同义台词（英文 + 中文），运行时只做一次查表。
   规则引擎仍决定 beat 和事实；台词库只换措辞，并按会话轮换，避免重复。
+- **个人问题单独成档**：年龄、生日、家人、喜好、梦想、对 Grom/Lina 的看法等
+  走 `personal` beat，不会再被当成“学者问题”答非所问。
 - **后台自扩**：玩家读字/打字时，LFM2.5 会参考最近几轮对话，为刚说过的 beat
   生成新的同义台词，逐条校验后入库；模型调用用非阻塞锁，永远不会拖慢前台。
   词库按 beat 上限 16 条、总计 900 条封顶，并尝试写入 `bank_runtime.json`。
@@ -57,7 +59,7 @@ short_description: 铁匠 Grom、老板娘 Lina 与小红，三位规则驱动�
 |---|---|
 | `app.py` | Gradio 界面、NPC 选择、快速模式、翻译与润色管线 |
 | `bot/npc/profiles.py` | 三位 NPC 的内容（facts / 台词 / 任务） |
-| `bot/npc/bank.json` | 离线台词库（英文 + 中文，186 条），运行时只读 |
+| `bot/npc/bank.json` | 离线台词库（英文 + 中文，234 条），运行时只读 |
 | `bot/npc/bank.py` | 台词库加载、轮换选择、运行时增量，缺失时自动回退 |
 | `bot/npc/grower.py` | 后台自扩：按最近对话挑 beat、生成、校验、入库 |
 | `bot/npc/reader.py` | 意图分类（SAFETY / BOUNDARY / JAILBREAK / GAME / SECRET / QUEST…） |

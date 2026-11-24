@@ -51,6 +51,11 @@ TEXT = {
         "Laugh while you can. The road out there doesn't.",
         "Glad someone's in good spirits.",
     ],
+    "personal": [
+        "That's a story for another day.",
+        "I keep most of myself to myself. Ask me about the work.",
+        "Some things aren't for a first conversation.",
+    ],
     "location": [
         "You're at {location}. Now, what do you need?",
         "This is {location}. Don't stand in the doorway.",

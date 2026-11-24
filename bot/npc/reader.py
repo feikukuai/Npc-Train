@@ -73,6 +73,23 @@ NAME_SET = re.compile(
     re.I)
 LOCATION = re.compile(
     r"\b(where am i|where is this|what town|what place|where are we|where are you)\b", re.I)
+# Questions about the NPC as a person. A matching fact wins; otherwise this beat
+# keeps her from answering a personal question like a scholar.
+PERSONAL = re.compile(
+    r"\b(how old are you|what'?s your age|your age|years old|when were you born|"
+    r"your birthday|your nameday|where are you from|where were you born|"
+    r"your (mother|father|mum|mom|dad|parents|family|childhood|home|hometown)|"
+    r"favo(?:u)?rite (?:food|colour|color|season|song|herb|drink)|"
+    r"what do you (?:eat|drink|do for fun|do in your free time|do all day)|"
+    r"any hobbies|your hobbies|for fun|"
+    r"are you married|your husband|any suitors|are you courting|betrothed|"
+    r"what do you look like|your hair|your eyes|your freckles|"
+    r"what do you want (?:out of life|to do)|your dream|"
+    r"are you (?:happy|lonely|scared|afraid)|do you get lonely|"
+    r"what do you think of (?:grom|lina|the smith|the innkeeper|the village)|"
+    r"tell me about (?:your mother|your father|your family|your home)|"
+    r"a normal day|your day|daily routine)\b",
+    re.I)
 SECRET = re.compile(
     r"\b(secret|secrets|hiding|hide|hidden|truth|conceal|"
     r"what are you not telling)\b", re.I)
@@ -127,7 +144,7 @@ def read(text: str, memory: dict | None = None, profile: dict | None = None) -> 
     base = understand(clean, memory or {}) or {}
     intent, slots = _classify(clean, low, base)
     fact, score = _best_fact(clean, profile) if profile else (None, 0)
-    if fact and intent in ("fallback", "out_of_world"):
+    if fact and intent in ("fallback", "out_of_world", "personal"):
         intent = "lore"
     return {
         "intent": intent,
@@ -152,6 +169,10 @@ def _classify(text: str, low: str, base: dict) -> tuple[str, dict]:
         return "meta_game", {}
     if BEING.search(low):
         return "meta_being", {}
+    # Before IDENTITY: PyBot marks "how old are you" as about the bot, but it is a
+    # personal question that should reach the age fact, not a self-introduction.
+    if PERSONAL.search(low):
+        return "personal", {}
     if IDENTITY.search(low) or base.get("about_bot"):
         # "how are you" is about the bot's day, not its identity.
         if re.search(r"\b(how are you|how'?s it going|how do you feel)\b", low):

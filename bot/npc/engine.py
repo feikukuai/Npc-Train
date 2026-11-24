@@ -186,7 +186,7 @@ def _plan(r: dict, state: dict, profile: dict) -> dict:
 
     if intent in ("farewell", "thanks", "apology", "insult", "compliment",
                   "smalltalk_how", "smalltalk_joke", "smalltalk_weather",
-                  "smalltalk_bored", "smalltalk_laugh"):
+                  "smalltalk_bored", "smalltalk_laugh", "personal"):
         return _beat(plan, intent)
 
     if intent == "clarify":

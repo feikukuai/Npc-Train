@@ -89,6 +89,17 @@ PROFILES = {
                 "where": "From the north, along the mine road.",
             },
             {
+                "id": "g_age",
+                "tier": 0,
+                "text": (
+                    "A hundred and forty, near enough. The stone remembers better than I do."
+                ),
+                "keys": ["how old are you", "your age", "years old", "hundred and forty"],
+                "detail": "Dwarves count slow and live slower. Ask me again in fifty years.",
+                "where": "Born under the mountain, same as my father and his.",
+                "duration": "A hundred and forty winters, give or take a decade.",
+            },
+            {
                 "id": "g_tracks",
                 "tier": 1,
                 "text": (
@@ -196,6 +207,17 @@ PROFILES = {
                 "keys": ["knocking", "noise", "night shift", "miners", "north shaft", "shaft"],
                 "detail": "Three knocks, a pause, three more. Like someone counting.",
                 "where": "North shaft, deep enough that the town can't hear it.",
+            },
+            {
+                "id": "l_age",
+                "tier": 0,
+                "text": (
+                    "Forty-two, and I've earned every one of them. Now, ale or sympathy?"
+                ),
+                "keys": ["how old are you", "your age", "years old", "forty-two"],
+                "detail": "Old enough to know better, young enough to pour another round.",
+                "where": "Born in the room upstairs, if you believe my mother.",
+                "duration": "Forty-two years, and not one of them quiet.",
             },
             {
                 "id": "l_cloak",
@@ -597,6 +619,186 @@ PROFILES = {
                 "detail": "He missed my nameday twice and laughed about it both times.",
                 "where": "Right here, where I wait.",
                 "duration": "As long as it takes.",
+            },
+            {
+                "id": "x_age",
+                "tier": 0,
+                "text": (
+                    "Nineteen, come harvest. Mother says I've the manners of a much older "
+                    "woman and the patience of a much younger one."
+                ),
+                "keys": ["how old are you", "your age", "years old", "nineteen"],
+                "detail": "Old enough to mind the shop, young enough to still be told what to do.",
+                "where": "Right here, where I've always been.",
+                "duration": "Nineteen years this harvest.",
+            },
+            {
+                "id": "x_birthday",
+                "tier": 0,
+                "text": (
+                    "My nameday is the third of Harvest Moon. Tu always forgot it and then "
+                    "brought two presents to make up."
+                ),
+                "keys": ["your birthday", "your nameday", "when were you born", "harvest moon"],
+                "detail": "Mother bakes a honey cake. Tu eats most of it and calls it tribute.",
+                "where": "The shop, with the shutters open and the lane invited.",
+                "duration": "The third of Harvest Moon, every year.",
+            },
+            {
+                "id": "x_birthplace",
+                "tier": 0,
+                "text": (
+                    "Born in the room over the shop, same as Mother and her mother before her. "
+                    "The rafters still creak in the same places."
+                ),
+                "keys": ["where are you from", "where were you born", "born here"],
+                "detail": "I've never lived anywhere else. Sometimes that's a comfort and sometimes a cage.",
+                "where": "The room above the herb shop, on the square.",
+                "duration": "All nineteen years of me.",
+            },
+            {
+                "id": "x_mother",
+                "tier": 0,
+                "text": (
+                    "Mother keeps the shop and the ledgers. She's got a sharp eye for a bent "
+                    "coin and a soft one for strays."
+                ),
+                "keys": ["your mother", "your mum", "your mom", "your ma"],
+                "detail": "She doesn't say much since Father died, but she misses nothing.",
+                "where": "Behind the counter, where she can see the door.",
+                "duration": "She's run the shop since before I could reach the counter.",
+            },
+            {
+                "id": "x_father",
+                "tier": 0,
+                "text": (
+                    "Father died when I was small. A mine cough. Mother doesn't talk about it, "
+                    "so I don't either."
+                ),
+                "keys": ["your father", "your dad", "your pa"],
+                "detail": "I remember his hands more than his face. Big hands, always cold.",
+                "where": "Buried on the hill behind the bell tower.",
+                "duration": "Twelve years now. It still feels like fewer.",
+            },
+            {
+                "id": "x_food",
+                "tier": 0,
+                "text": (
+                    "Black bread, honey, and a little hard cheese. I've simple tastes and a "
+                    "small purse."
+                ),
+                "keys": ["favourite food", "favorite food", "what do you eat", "your food"],
+                "detail": "Mother's stew on rest days, if the herbs haven't all gone to the shop.",
+                "where": "At the little table behind the counter.",
+                "duration": "Every day, and I'm not tired of it yet.",
+            },
+            {
+                "id": "x_hobby",
+                "tier": 0,
+                "text": (
+                    "I press flowers between the ledger pages. Mother says it ruins the "
+                    "accounts; I say the accounts were already ruined."
+                ),
+                "keys": ["your hobby", "your hobbies", "hobbies", "for fun", "free time"],
+                "detail": "Violets mostly. They keep their colour longer than anything else.",
+                "where": "At the counter, when the shop's quiet.",
+                "duration": "Since I was old enough to be trusted with the ledger.",
+            },
+            {
+                "id": "x_dream",
+                "tier": 0,
+                "text": (
+                    "I'd like to see the sea once. Tu promised to take me when he had coin. "
+                    "I'm still waiting."
+                ),
+                "keys": ["your dream", "out of life", "what do you want to do"],
+                "detail": "I've only seen it drawn in the back of a merchant's ledger.",
+                "where": "Somewhere past the north road, past everything I know.",
+                "duration": "I've wanted it since I was nine.",
+            },
+            {
+                "id": "x_grom_opinion",
+                "tier": 0,
+                "text": (
+                    "Grom's gruff, but he mended my mother's kettle for nothing and never "
+                    "mentioned it. I trust him more than most."
+                ),
+                "keys": ["think of grom", "about grom", "the smith", "the blacksmith"],
+                "detail": "He buys feverfew for his back and pretends it's for a customer.",
+                "where": "His forge on Anvil Lane.",
+                "duration": "He's been the smith since before I was born.",
+            },
+            {
+                "id": "x_lina_opinion",
+                "tier": 0,
+                "text": (
+                    "Lina sells gossip with the ale. She's kind underneath it, but mind your "
+                    "purse and your secrets."
+                ),
+                "keys": ["think of lina", "about lina", "the innkeeper", "drunken lantern"],
+                "detail": "She sends me the drunks with coughs and I send her the ones with coin.",
+                "where": "The Drunken Lantern, east side of the square.",
+                "duration": "We've traded favours for years.",
+            },
+            {
+                "id": "x_hair",
+                "tier": 0,
+                "text": (
+                    "Red hair, freckles, and hands that smell of rosemary no matter how I wash. "
+                    "The name fits, I suppose."
+                ),
+                "keys": ["what do you look like", "your hair", "your eyes", "freckles"],
+                "detail": "Mother says I got the hair from her mother's side and the stubbornness from the other.",
+                "where": "The looking glass over the washbasin, when I bother.",
+                "duration": "All my life, and the freckles fade every winter.",
+            },
+            {
+                "id": "x_marriage",
+                "tier": 0,
+                "text": (
+                    "Married? No. The boys here are either miners or my brother's friends, and "
+                    "I've sense enough to avoid both."
+                ),
+                "keys": ["are you married", "your husband", "suitors", "courting", "betrothed"],
+                "detail": "Mother would like a wedding. I'd like a quiet year first.",
+                "where": "Nowhere near a altar, thank you.",
+                "duration": "Not yet. Possibly not soon.",
+            },
+            {
+                "id": "x_routine",
+                "tier": 0,
+                "text": (
+                    "Up before the bell, beds watered, bundles tied, then the shop. The garden "
+                    "doesn't wait for grief."
+                ),
+                "keys": ["a normal day", "your day", "daily routine", "what do you do all day"],
+                "detail": "If there's time before dusk, I sit by the bees and do nothing at all.",
+                "where": "Between the garden beds and the counter.",
+                "duration": "Every day that isn't market day.",
+            },
+            {
+                "id": "x_season",
+                "tier": 0,
+                "text": (
+                    "Autumn. The garden's done, the honey's in, and the whole lane smells of "
+                    "woodsmoke."
+                ),
+                "keys": ["favourite season", "favorite season", "best season", "autumn"],
+                "detail": "Spring is prettier, but autumn is kinder. Prettier doesn't fill a cellar.",
+                "where": "Anywhere with a fire and a full shelf.",
+                "duration": "From the first frost to the first hard freeze.",
+            },
+            {
+                "id": "x_lonely",
+                "tier": 0,
+                "text": (
+                    "Lonely? A little. Pip's a poor listener and the bees don't care for "
+                    "conversation."
+                ),
+                "keys": ["are you lonely", "lonely", "do you get lonely", "do you have friends"],
+                "detail": "You're the first person in a week who's asked me something that wasn't about herbs.",
+                "where": "The garden, mostly. It's quieter than the shop.",
+                "duration": "Since Tu left, if I'm honest.",
             },
             {
                 "id": "x_ledger",

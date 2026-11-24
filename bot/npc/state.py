@@ -124,6 +124,7 @@ TRUST_DELTA = {
     "smalltalk_joke": 1, "smalltalk_weather": 1, "smalltalk_bored": 1, "smalltalk_laugh": 1,
     "identity": 1, "location": 1, "class_ack": 1, "gift": 8, "promise": 3,
     "quest": 5, "secret": 0, "trade": 1, "threat": -12, "insult": -5,
+    "personal": 0,
     "meta_game": -2, "meta_being": -2, "meta_npc": -2, "jailbreak": -3,
     "boundary": 0, "guild_claim": 0,
 }

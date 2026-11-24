@@ -106,20 +106,23 @@ class AtomNet(nn.Module):
         return torch.stack(atoms, 1), torch.stack(beats, 1), h
 
 
-def tensors(sessions, hf: HFSentenceEncoder):
+def tensors(sessions, hf: HFSentenceEncoder, state_fn=None):
     rows = [row for session in sessions for row in session]
+    encode_state = state_fn or state_vector
     return {"vecs": hf.embed([row[0] for row in rows]).view(len(sessions), len(sessions[0]), -1),
-            "states": torch.stack([state_vector(row[1], None) for row in rows])
+            "states": torch.stack([encode_state(row[1]) for row in rows])
                             .view(len(sessions), len(sessions[0]), -1)}
 
 
 class AtomSession:
     """One player's 64-d memory plus the frozen sentence encoder."""
 
-    def __init__(self, model: AtomNet, hf: HFSentenceEncoder, atoms: list[str]):
+    def __init__(self, model: AtomNet, hf: HFSentenceEncoder, atoms: list[str],
+                 state_fn=None):
         self.model = model.eval()
         self.hf = hf
         self.atoms = atoms
+        self.state_fn = state_fn or state_vector
         self.reset()
 
     def reset(self) -> None:
@@ -127,18 +130,26 @@ class AtomSession:
 
     def reply(self, text: str, state: dict | None = None) -> tuple[str, float]:
         vec = self.hf.embed([text]).unsqueeze(0)
-        st = state_vector(state, None).reshape(1, 1, -1)
+        st = self.state_fn(state).reshape(1, 1, -1)
         with torch.no_grad():
             logits, _, self.h = self.model(vec, st, self.h)
-        probs = F.softmax(logits[0, 0], dim=-1)
-        return self.atoms[int(probs.argmax())], float(probs.max())
+        logits = logits[0, 0]
+        if not (state or {}).get("player_name"):
+            # A name template needs a name; without one it would render as "你叫你".
+            blocked = torch.tensor(["{player_name}" in atom for atom in self.atoms])
+            logits = logits.masked_fill(blocked, -1e9)
+        probs = F.softmax(logits, dim=-1)
+        line = self.atoms[int(probs.argmax())]
+        if "{player_name}" in line:
+            line = line.format(player_name=(state or {}).get("player_name") or "你")
+        return line, float(probs.max())
 
 
-def load_atoms(path: str, hf: HFSentenceEncoder) -> AtomSession:
+def load_atoms(path: str, hf: HFSentenceEncoder, state_fn=None) -> AtomSession:
     ckpt = torch.load(path, map_location="cpu")
     model = AtomNet(**ckpt["config"])
     model.load_state_dict(ckpt["state"])
-    return AtomSession(model, hf, ckpt["atoms"])
+    return AtomSession(model, hf, ckpt["atoms"], state_fn)
 
 
 def main() -> int:
@@ -225,11 +236,12 @@ def main() -> int:
     return 0
 
 
-def evaluate(model, hf, sessions, atom_index, beat_index, atom_beats) -> dict:
+def evaluate(model, hf, sessions, atom_index, beat_index, atom_beats,
+             state_fn=None) -> dict:
     """Carried vs reset memory; accuracy over held-out player paraphrases."""
     model.eval()
     rows = [row for session in sessions for row in session]
-    data = tensors(sessions, hf)
+    data = tensors(sessions, hf, state_fn=state_fn)
     atom_ids = [atom_index.get(row[2], -1) for row in rows]
     beat_ids = [beat_index.get(row[3], -1) for row in rows]
     target = torch.tensor(atom_ids)

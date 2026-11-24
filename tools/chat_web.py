@@ -46,9 +46,11 @@ class ChatSession:
 
     def say(self, text: str, mode: str) -> dict:
         if self.lang == "zh":
-            from expertnet.zh.persona import teacher_turn
+            from expertnet.zh.persona import format_line, teacher_turn
+            prev = self.zh_state.get("last_beat")
             rule, _ = teacher_turn(text, self.zh_state)
-            state = self.zh_state
+            rule = format_line(rule, self.zh_state)
+            state = {**self.zh_state, "last_beat": prev}
             profile = "ahe"
         else:
             result = engine.turn(text, self.memory)
@@ -83,14 +85,17 @@ class Server:
         self.atoms_available = os.path.exists(checkpoint)
         self.hf = None
         self.template = None
+        self.state_fn = None
         if self.atoms_available:
             try:
                 print("loading sentence encoder...")
                 if lang == "zh":
+                    from expertnet.zh.persona import zh_state_vector
                     self.hf = HFSentenceEncoder(ZH_MODEL[0], pooling=ZH_MODEL[1])
+                    self.state_fn = zh_state_vector
                 else:
                     self.hf = HFSentenceEncoder()
-                self.template = load_atoms(checkpoint, self.hf)
+                self.template = load_atoms(checkpoint, self.hf, self.state_fn)
                 print("sentence-atom model ready")
             except Exception:
                 traceback.print_exc()
@@ -107,7 +112,8 @@ class Server:
             if entry is None:
                 atom = None
                 if self.atoms_available:
-                    atom = AtomSession(self.template.model, self.hf, self.template.atoms)
+                    atom = AtomSession(self.template.model, self.hf,
+                                       self.template.atoms, self.state_fn)
                 entry = ChatSession(atom, self.atoms_available, self.lang)
                 self.sessions[sid] = entry
             return entry

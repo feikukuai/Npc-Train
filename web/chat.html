@@ -172,7 +172,7 @@ fetch("/api/health").then(r => r.json()).then(d => {
     document.title = d.name + " · 句库对话";
   }
   if (d.lang === "zh") {
-    $("sub").textContent = "规则老师 vs 整句预测（阿禾，59 句）";
+    $("sub").textContent = "规则老师 vs 整句预测（阿禾，68 句）";
     $("note").textContent = "阿禾五岁半，只认识药铺、药园、老井和橘猫阿团。左边是规则老师，右边是只从句库里挑一句的 64 维记忆模型。";
     $("input").placeholder = "和阿禾说点什么，例如：你好。 / 草药园在哪里？ / 糖多少钱？";
   }

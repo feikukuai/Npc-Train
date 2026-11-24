@@ -74,6 +74,11 @@ PROFILES = {
                     "Nobody's found a wheel, a horse, or a body."
                 ),
                 "keys": ["caravan", "caravans", "wagon", "wagons", "merchants", "missing"],
+                "say": [
+                    "Three caravans have gone missing on the north mine road this month. Nobody's found a wheel, a horse, or a body.",
+                    "Three caravans lost on the north road. No wreck, no horses, no bodies.",
+                    "Caravans keep vanishing north of here. Three this month, and not a trace.",
+                ],
                 "detail": "The last one was hauling silver ore. It never reached Stonecross.",
                 "where": "On the north mine road, past the last farm.",
                 "duration": "Three weeks since the first one. Two more since.",
@@ -85,6 +90,11 @@ PROFILES = {
                     "My ore shipments stopped, so I'm short on steel and shorter on patience."
                 ),
                 "keys": ["ore", "steel", "supply", "supplies", "shipment", "iron"],
+                "say": [
+                    "My ore shipments stopped, so I'm short on steel and shorter on patience.",
+                    "No ore coming north. No steel either, and I've work piling up.",
+                    "Ore's stopped and my temper's shorter than my stock.",
+                ],
                 "detail": "Same road the caravans use. That's no coincidence to me.",
                 "where": "From the north, along the mine road.",
             },
@@ -193,6 +203,11 @@ PROFILES = {
                     "copper, no trouble at all."
                 ),
                 "keys": ["caravan", "ale", "drank", "tavern", "inn", "last night"],
+                "say": [
+                    "That caravan drank here the night before it vanished. Cheap ale, paid in copper, no trouble at all.",
+                    "They drank here the night before they vanished. Quiet lot, paid in copper.",
+                    "The lost caravan spent its last night at my tables. No trouble, and no warning.",
+                ],
                 "detail": "Four of them. Quiet lot. One kept his hood up the whole time.",
                 "where": "Right here, at the long table by the fire.",
                 "duration": "The night before the first caravan disappeared.",
@@ -205,6 +220,11 @@ PROFILES = {
                     "from the north shaft."
                 ),
                 "keys": ["knocking", "noise", "night shift", "miners", "north shaft", "shaft"],
+                "say": [
+                    "The miners won't take the night shift anymore. They say there's knocking from the north shaft.",
+                    "Nobody will work the night shift. There's knocking in the north shaft.",
+                    "The night shift's empty because of the knocking. Three knocks, a pause, three more.",
+                ],
                 "detail": "Three knocks, a pause, three more. Like someone counting.",
                 "where": "North shaft, deep enough that the town can't hear it.",
             },
@@ -326,6 +346,11 @@ PROFILES = {
                     "stubborn. He wouldn't vanish on purpose."
                 ),
                 "keys": ["tu", "my brother", "brother tu", "your brother"],
+                "say": [
+                    "Tu is my brother. Two years older, a head taller, and twice as stubborn. He wouldn't vanish on purpose.",
+                    "Tu's my brother. Gone north three weeks, and not a word since.",
+                    "My brother Tu. Older, taller, and missing three weeks now.",
+                ],
                 "detail": "He's older than me by two years and half a head, and twice as stubborn.",
                 "more": [
                     "He still borrows my coat without asking, and he's a head taller than me.",
@@ -366,6 +391,11 @@ PROFILES = {
                     "This is my mother's herb garden, behind the shop. Mind the nettles by the wall."
                 ),
                 "keys": ["garden", "herb garden", "nettles", "beds"],
+                "say": [
+                    "This is my mother's herb garden, behind the shop. Mind the nettles by the wall.",
+                    "Mother's beds, behind the shop. Watch the nettles.",
+                    "Twelve beds behind the shop. I know them by smell.",
+                ],
                 "detail": "Twelve beds, and I know every plant in them by the smell of its leaves.",
                 "more": [
                     "The mint's taken the whole east wall and I've given up arguing.",
@@ -391,6 +421,11 @@ PROFILES = {
                 "tier": 0,
                 "text": "Yarrow stops bleeding. Chew it, press it on, and don't ask why it tastes like that.",
                 "keys": ["yarrow", "stop bleeding", "bleeding"],
+                "say": [
+                    "Yarrow stops bleeding. Chew it, press it on, and don't ask why it tastes like that.",
+                    "Yarrow for a cut. Chew it, pack the wound, and hold it.",
+                    "Yarrow, two copper a bunch. It stops blood better than anything in the garden.",
+                ],
                 "detail": "Pack the wound and hold it. Change it at dusk and again at dawn.",
                 "more": [
                     "Hold it till the bleeding slows, then wash it out and bind it clean.",
@@ -440,6 +475,11 @@ PROFILES = {
                     "in a storm."
                 ),
                 "keys": ["honey", "bees", "beehive", "hives", "jar"],
+                "say": [
+                    "My bees keep the honey. One copper a jar, and don't come near the hives in a storm.",
+                    "Clover and thyme honey, a copper a jar. Stay clear of the hives in a storm.",
+                    "The bees do the work and I take the jars. One copper each.",
+                ],
                 "detail": "Clover and wild thyme this year. The thyme makes it sharp.",
                 "more": [
                     "The thyme honey's sharp enough to cut a cold.",
@@ -621,6 +661,11 @@ PROFILES = {
                 "tier": 0,
                 "text": "I keep a lamp burning these nights. The lane's too quiet without him.",
                 "keys": ["lamp", "sleepless", "too quiet", "nights"],
+                "say": [
+                    "I keep a lamp burning these nights. The lane's too quiet without him.",
+                    "A lamp every night now. I hear every fox and every shutter.",
+                    "I don't sleep much. The lamp stays lit and the door stays unbarred.",
+                ],
                 "detail": "I hear every fox and every loose shutter. Neither one is him.",
                 "where": "The little room over the shop, facing the lane.",
                 "duration": "Three weeks now.",
@@ -644,7 +689,12 @@ PROFILES = {
                     "Nineteen, come harvest. Mother says I've the manners of a much older "
                     "woman and the patience of a much younger one."
                 ),
-                "keys": ["how old are you", "your age", "years old", "nineteen"],
+                "keys": ["how old are you", "your age", "years old", "nineteen", "how many winters"],
+                "say": [
+                    "Nineteen, come harvest. Mother says I've the manners of a much older woman and the patience of a much younger one.",
+                    "Nineteen, near enough. I count it at harvest.",
+                    "Nineteen come harvest. Old enough to mind the shop, young enough to be told what to do.",
+                ],
                 "detail": "Old enough to mind the shop, young enough to still be told what to do.",
                 "more": [
                     "Mother says I was born stubborn and it's only got worse.",
@@ -685,6 +735,11 @@ PROFILES = {
                     "coin and a soft one for strays."
                 ),
                 "keys": ["your mother", "your mum", "your mom", "your ma"],
+                "say": [
+                    "Mother keeps the shop and the ledgers. She's got a sharp eye for a bent coin and a soft one for strays.",
+                    "My mother runs the counter. Sharp eye, soft heart.",
+                    "Mother minds the shop. She misses nothing and says little.",
+                ],
                 "detail": "She doesn't say much since Father died, but she misses nothing.",
                 "more": [
                     "She keeps Father's pipe on the shelf and never lights it.",
@@ -724,7 +779,12 @@ PROFILES = {
                     "I press flowers between the ledger pages. Mother says it ruins the "
                     "accounts; I say the accounts were already ruined."
                 ),
-                "keys": ["your hobby", "your hobbies", "hobbies", "for fun", "free time"],
+                "keys": ["your hobby", "your hobbies", "hobbies", "for fun", "free time", "violets"],
+                "say": [
+                    "I press flowers between the ledger pages. Mother says it ruins the accounts; I say the accounts were already ruined.",
+                    "I press flowers in the ledger. Violets mostly. Mother calls it ruining the accounts.",
+                    "Flowers, pressed between pages. Violets keep their colour longest.",
+                ],
                 "detail": "Violets mostly. They keep their colour longer than anything else.",
                 "more": [
                     "I've a whole ledger of them, one for every year since I was small.",
@@ -741,6 +801,11 @@ PROFILES = {
                     "I'm still waiting."
                 ),
                 "keys": ["your dream", "out of life", "what do you want to do"],
+                "say": [
+                    "I'd like to see the sea once. Tu promised to take me when he had coin. I'm still waiting.",
+                    "The sea. Just once, before I'm too old to travel.",
+                    "I want to stand in the sea up to my knees and not say a word.",
+                ],
                 "detail": "I've only seen it drawn in the back of a merchant's ledger.",
                 "more": [
                     "Tu says the sea is just a big grey puddle. He's never seen it either.",
@@ -758,6 +823,11 @@ PROFILES = {
                     "mentioned it. I trust him more than most."
                 ),
                 "keys": ["think of grom", "about grom", "the smith", "the blacksmith"],
+                "say": [
+                    "Grom's gruff, but he mended my mother's kettle for nothing and never mentioned it. I trust him more than most.",
+                    "The smith? Gruff. Kind underneath, though he'd deny it.",
+                    "Grom does good turns and pretends he didn't. I like him for it.",
+                ],
                 "detail": "He buys feverfew for his back and pretends it's for a customer.",
                 "more": [
                     "He calls me 'girl' and means it kindly, which is more than most manage.",
@@ -775,6 +845,11 @@ PROFILES = {
                     "purse and your secrets."
                 ),
                 "keys": ["think of lina", "about lina", "the innkeeper", "drunken lantern"],
+                "say": [
+                    "Lina sells gossip with the ale. She's kind underneath it, but mind your purse and your secrets.",
+                    "The innkeeper knows everything worth knowing. She's kind, and she's a business.",
+                    "Lina's good company, if you can pay for it. Watch your secrets.",
+                ],
                 "detail": "She sends me the drunks with coughs and I send her the ones with coin.",
                 "where": "The Drunken Lantern, east side of the square.",
                 "duration": "We've traded favours for years.",
@@ -835,6 +910,11 @@ PROFILES = {
                     "conversation."
                 ),
                 "keys": ["are you lonely", "lonely", "do you get lonely", "do you have friends"],
+                "say": [
+                    "Lonely? A little. Pip's a poor listener and the bees don't care for conversation.",
+                    "A little lonely, yes. The bees don't talk back.",
+                    "Some nights. Pip listens, but he's not much for answers.",
+                ],
                 "detail": "You're the first person in a week who's asked me something that wasn't about herbs.",
                 "more": [
                     "The bees are company of a sort. They at least come when I call.",

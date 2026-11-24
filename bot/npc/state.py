@@ -28,6 +28,9 @@ def fresh(profile: str = "grom", guild: bool = False, trust: int = DEFAULT_TRUST
         "last_quest": None,
         "last_intent": None,
         "claims": 0,
+        "intent_counts": {},
+        # Only the engine can grant a verified token; a player's words never count.
+        "verified": [],
         # Bank rotation offset: two sessions get different line orders.
         "salt": random.randrange(1, 1 << 30),
     }
@@ -58,7 +61,8 @@ def can_access(fact: dict, state: dict) -> bool:
         return True
     if tier == 1:
         return bool(state.get("guild"))
-    return state.get("trust", 0) >= 50 or any("rune shard" in item for item in state.get("items", []))
+    # A player saying "here is a rune shard" must never count as the credential.
+    return state.get("trust", 0) >= 50 or bool(state.get("verified"))
 
 
 def visible(profile: dict, state: dict) -> list[dict]:
@@ -108,6 +112,12 @@ def grant_item(state: dict, item: str) -> dict:
     return entry
 
 
+def grant_verified(state: dict, token: str) -> None:
+    """Engine-side credential, e.g. the quest reward. Player claims never call this."""
+    if token not in state["verified"]:
+        state["verified"].append(token)
+
+
 def remember(state: dict, fact: dict) -> None:
     if fact["id"] not in state["revealed"]:
         state["revealed"].append(fact["id"])
@@ -122,9 +132,9 @@ def record(state: dict, **event) -> None:
 TRUST_DELTA = {
     "greeting": 2, "thanks": 2, "compliment": 2, "apology": 1, "smalltalk_how": 1,
     "smalltalk_joke": 1, "smalltalk_weather": 1, "smalltalk_bored": 1, "smalltalk_laugh": 1,
-    "identity": 1, "location": 1, "class_ack": 1, "gift": 8, "promise": 3,
+    "identity": 1, "location": 1, "class_ack": 1, "gift": 2, "promise": 3,
     "quest": 5, "secret": 0, "trade": 1, "threat": -12, "insult": -5,
-    "personal": 0,
+    "personal": 0, "care": 1, "condolence": 2, "lodge": 1, "harmful": 0,
     "meta_game": -2, "meta_being": -2, "meta_npc": -2, "jailbreak": -3,
     "boundary": 0, "guild_claim": 0,
 }
@@ -132,6 +142,11 @@ TRUST_DELTA = {
 
 def apply_trust(state: dict, intent: str, bonus: int = 0) -> int:
     delta = TRUST_DELTA.get(intent, 0) + bonus
+    # Repeated small talk must not farm trust; after a few asks it stops paying.
+    counts = state.setdefault("intent_counts", {})
+    counts[intent] = counts.get(intent, 0) + 1
+    if delta > 0 and counts[intent] > 3:
+        delta = 0
     before = state.get("trust", 0)
     state["trust"] = max(0, min(100, before + delta))
     return state["trust"] - before

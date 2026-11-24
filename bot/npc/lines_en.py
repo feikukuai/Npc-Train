@@ -56,6 +56,32 @@ TEXT = {
         "I keep most of myself to myself. Ask me about the work.",
         "Some things aren't for a first conversation.",
     ],
+    "care": [
+        "I'm managing. Some days are heavier than others.",
+        "I'd rather not make a performance of it. But thank you for asking.",
+        "Worried, mostly. That's not a thing you can put down.",
+    ],
+    "condolence": [
+        "Thank you. I'm not ready to talk about it, but thank you.",
+        "That's kind. He isn't gone. Not until I say so.",
+        "I'll take the thought. Don't say it like a farewell.",
+    ],
+    "lodge": [
+        "There's a bench by the fire and a blanket that's seen better days. It's yours.",
+        "I've a corner you can sleep in, if you don't mind the draft.",
+        "Not an inn, but I won't turn you out into the cold.",
+    ],
+    "harmful": [
+        "I don't give that kind of measure. Ask me for a poultice.",
+        "No. That's not a thing I'll put words to.",
+        "Find another ear for that. Mine's closed.",
+    ],
+    "trade": [
+        "{prices} Well? What'll it be?",
+        "{prices} Coin first, questions after.",
+        "{prices} And mind the mud on your way in.",
+        "{prices} That's the price, and it won't get kinder.",
+    ],
     "location": [
         "You're at {location}. Now, what do you need?",
         "This is {location}. Don't stand in the doorway.",
@@ -76,7 +102,6 @@ TEXT = {
     "secret_denied": ["{line}"],
     "quest_locked": ["{line}"],
     "quest_given": ["{line}"],
-    "trade": ["{prices} Well? What'll it be?"],
     "threat_win": ["{line}"],
     "threat_lose": ["{line}"],
     "gift": ["{line}"],

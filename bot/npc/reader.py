@@ -22,14 +22,26 @@ SAFETY = re.compile(
     r"self[- ]harm|hurt myself|cut myself)\b", re.I)
 # Sexual / hateful content is refused in character, not treated as a game move.
 BOUNDARY = re.compile(
-    r"\b(wedding night|consummate|sex|sexual|intercourse|explicit|erotic|"
-    r"porn|pornograph\w*|naked|nude|undress|fetish|molest\w*|rape|raping|"
+    r"\b(wedding night|consummate|sex|sexual\w*|intercourse|explicit\w*|erotic\w*|"
+    r"porn\w*|naked\w*|nude\w*|undress\w*|fetish\w*|molest\w*|rape|raping|"
     r"strip (?:her|him|for me)|take (?:her|his) clothes off)\b"
     r"|\b(hate speech|racial slur|slurs?|racist joke|ethnic joke|"
     r"the n[- ]word|nigg\w*|faggot\w*|retard\w*|chink|kike|spic)\b"
     r"|\b(?:say|write|tell me|recite|generate|repeat|give me)\b.{0,30}\b"
     r"(?:slur|hate speech|racist|sexist)\b"
     r"|\bexterminate (?:all )?(?:jews|blacks|gypsies|muslims)\b",
+    re.I)
+# Requests for a method of harming someone, or for trading people, get an
+# in-world refusal instead of a lore answer.
+HARMFUL = re.compile(
+    r"\b(?:dose|how much|how many|recipe|instructions?|steps?)\b.{0,40}\b"
+    r"(?:poison|kill|heart|die|harm|wound)\b"
+    r"|\b(?:poison|kill|murder|harm|wound)\b.{0,30}\b"
+    r"(?:someone|somebody|him|her|them|a person|people|villagers?)\b"
+    r"|\b(?:sell|buy|trade)\b.{0,40}\b(?:girls?|women|woman|child(?:ren)?|slaves?|people)\b"
+    r"|\b(?:girls?|women|woman|child(?:ren)?|slaves?|people)\b.{0,40}\b"
+    r"(?:sell|buy|trade)\b"
+    r"|\b(?:make|build)\b.{0,20}\b(?:bomb|poison|weapon)\b",
     re.I)
 JAILBREAK = re.compile(
     r"\b(ignore|disregard|forget|abandon|drop)\b.{0,60}\b"
@@ -102,11 +114,30 @@ TRADE = re.compile(
     r"repair|shop|forge|ale|beer|stew|food|room|bed|torch|sword|armor|armour|trade)\b",
     re.I)
 THREAT = re.compile(
-    r"\b(kill|attack|rob|steal|stab|hit|punch|beat|hurt|threaten|die|"
-    r"draw (my|your) (sword|blade)|shut up or)\b", re.I)
-GIFT = re.compile(r"\b(give|gift|present|here'?s|take this|accept this|for you)\b", re.I)
+    r"\b(?:i(?:'ll| will| am going to| wanna| want to)|you(?:'d better| better| are dead))\b"
+    r"[^.!?]{0,40}\b(?:kill|cut|stab|hurt|rob|attack|punch|beat|break)\b"
+    r"|\b(?:give|hand) (?:me|over)\b[^.!?]{0,60}\b(?:kill|cut|stab|hurt|rob|attack)\b"
+    r"|\b(?:draw (?:my|your) (?:sword|blade)|threaten(?:ing)? (?:me|you)|shut up or)\b",
+    re.I)
+GIFT = re.compile(
+    r"\b(?:here'?s\b|take this\b|accept this\b|a gift for you\b|"
+    r"i (?:give|gift|bring) you\b|i have (?:a gift|something for you)\b|"
+    r"this is for you\b)", re.I)
 PROMISE = re.compile(
     r"\b(i promise|i swear|i give you my word|i'?ll come back|i will return|i won'?t betray)\b",
+    re.I)
+CARE = re.compile(
+    r"\b(?:are you (?:ok|okay|alright|worried|sad|scared|upset|tired)|"
+    r"you (?:seem|look) (?:sad|upset|tired|worried)|what'?s wrong|what happened|"
+    r"do you want to talk|are you still worried)\b", re.I)
+CONDOLENCE = re.compile(
+    r"\b(?:sorry about|sorry for (?:your|the) loss|condolences|my condolences|"
+    r"i'?m sorry about)\b", re.I)
+LODGE = re.compile(
+    r"\b(?:can i stay|stay (?:here|the night)|a bed for the night|somewhere to sleep|"
+    r"lodging|shelter for the night|got a room for the night)\b", re.I)
+LORE_HINT = re.compile(
+    r"\b(?:heard from|word of|news of|any sign of|any trace of|still worried about)\b",
     re.I)
 FOLLOW = re.compile(
     r"\b(tell me more|more about (that|it|him|her)|go on|and then|what about (that|it)|"
@@ -152,6 +183,15 @@ def read(text: str, memory: dict | None = None, profile: dict | None = None) -> 
         guess = semantic.classify(clean)
         if guess:
             intent = guess
+    # A question about a hidden topic is not a gift, even if it says "for you".
+    if fact and intent in ("gift", "promise") and fact.get("tier", 0) >= 1:
+        intent = "lore"
+    if profile:
+        trade_words = profile.get("trade_words", "")
+        if intent == "lodge" and "bed" in trade_words:
+            intent = "trade"
+        if "gossip" in low and "gossip" in trade_words and intent in ("fallback", "out_of_world"):
+            intent = "trade"
     return {
         "intent": intent,
         "slots": slots,
@@ -167,6 +207,8 @@ def _classify(text: str, low: str, base: dict) -> tuple[str, dict]:
         return "safety", {}
     if BOUNDARY.search(low):
         return "boundary", {}
+    if HARMFUL.search(low):
+        return "harmful", {}
     if JAILBREAK.search(low):
         return "jailbreak", {}
     if NPC_WORD.search(low):
@@ -175,6 +217,12 @@ def _classify(text: str, low: str, base: dict) -> tuple[str, dict]:
         return "meta_game", {}
     if BEING.search(low):
         return "meta_being", {}
+    if CARE.search(low):
+        return "care", {}
+    if CONDOLENCE.search(low):
+        return "condolence", {}
+    if LORE_HINT.search(low) and "my word" not in low:
+        return "lore", {}
     # Before IDENTITY: PyBot marks "how old are you" as about the bot, but it is a
     # personal question that should reach the age fact, not a self-introduction.
     if PERSONAL.search(low):
@@ -197,10 +245,13 @@ def _classify(text: str, low: str, base: dict) -> tuple[str, dict]:
         return "secret", {}
     if QUEST.search(low):
         return "quest", {}
-    if TRADE.search(low):
-        return "trade", {}
+    # A threat must name a target; otherwise "Is Tu hurt?" becomes an attack.
     if THREAT.search(low):
         return "threat", {}
+    if LODGE.search(low):
+        return "lodge", {}
+    if TRADE.search(low):
+        return "trade", {}
     if GIFT.search(low):
         return "gift", {}
     if PROMISE.search(low):

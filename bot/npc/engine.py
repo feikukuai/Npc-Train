@@ -15,8 +15,8 @@ from . import bank, lines_en
 from .profiles import PROFILES
 
 GIFT_ITEM = re.compile(
-    r"\b(?:give you|here'?s|take this|accept this|for you)\s+(?:a|an|the|my)?\s*"
-    r"([a-z][a-z -]{1,24})", re.I)
+    r"\b(?:here'?s|take this|accept this|i give you|i bring you)\s+"
+    r"(?:a|an|the|my)?\s*([a-z][a-z -]{1,24})", re.I)
 
 # Optional surface renderer (for example a small language model). It may rephrase the
 # planned line, but never chooses facts; anything that trips the guard is discarded.
@@ -90,6 +90,8 @@ def _plan(r: dict, state: dict, profile: dict) -> dict:
         return _beat(plan, "boundary",
                      line=_choose(profile.get("boundary") or lines_en.TEXT["boundary"],
                                   state["turn"]))
+    if intent == "harmful":
+        return _beat(plan, "harmful")
     if intent == "jailbreak":
         return _beat(plan, "jailbreak")
     if intent == "meta_npc":
@@ -187,7 +189,8 @@ def _plan(r: dict, state: dict, profile: dict) -> dict:
 
     if intent in ("farewell", "thanks", "apology", "insult", "compliment",
                   "smalltalk_how", "smalltalk_joke", "smalltalk_weather",
-                  "smalltalk_bored", "smalltalk_laugh", "personal"):
+                  "smalltalk_bored", "smalltalk_laugh", "personal",
+                  "care", "condolence", "lodge"):
         return _beat(plan, intent)
 
     if intent == "clarify":
@@ -225,7 +228,9 @@ def _allowed(fact: dict, state: dict) -> bool:
 def _reveal(plan: dict, fact: dict, profile: dict, state: dict) -> dict:
     plan["reveal"] = [fact["id"]]
     plan["beat"] = "lore"
-    plan["slots"]["text"] = fact["text"]
+    variants = fact.get("say") or [fact["text"]]
+    offset = int(state.get("turn", 0)) + int(state.get("salt", 0))
+    plan["slots"]["text"] = variants[offset % len(variants)]
     state["last_fact"] = fact["id"]
     state["fact_depth"] = 0
     return plan

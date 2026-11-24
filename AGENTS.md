@@ -21,6 +21,7 @@
 - Windows PowerShell + Python 3.12：
   `C:\Users\Administrator\AppData\Local\Programs\Python\Python312\python.exe`
 - 依赖：`requirements.txt`；本地另需 `gradio>=6`、`torch`（创空间基础镜像自带）。
+- 权重通过 **Git LFS** 存储：clone 前先 `git lfs install`，否则拿到的只是指针文件。
 - 首次运行需要下载：
   - 中文句向量 `BAAI/bge-small-zh-v1.5`（约 95MB）
   - 英文句向量 `sentence-transformers/all-MiniLM-L6-v2`（约 90MB，仅英文实验用）

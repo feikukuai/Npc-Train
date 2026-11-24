@@ -52,7 +52,52 @@ VOCAB = {
     "subj": SUBJ, "verb": VERB, "obj": OBJ, "adj": ADJ,
     "place": PLACE, "adv": ADV,
 }
+TEMPLATE_KEY = {"subj": "s", "verb": "v", "obj": "o",
+                "adj": "a", "place": "p", "adv": "adv"}
 PATTERN_NAMES = [row[0] for row in PATTERNS]
+PATTERN_TEMPLATE = {row[0]: row[1] for row in PATTERNS}
+
+
+def slot_context(row: dict) -> str:
+    """用行元数据造一个“已知槽位”的问题，给因子化头干净的监督。"""
+    p = row["pattern"]
+    s, v, o = row.get("subj", ""), row.get("verb", ""), row.get("obj", "")
+    a, place, adv = row.get("adj", ""), row.get("place", ""), row.get("adv", "")
+    return {
+        "svo": f"{s}是不是{v}{o}？",
+        "svo_neg": f"{s}是不是不{v}{o}？",
+        "ba": f"{s}是不是把{o}{v}了？",
+        "place_svo": f"{s}是不是在{place}{v}{o}？",
+        "svc": f"{s}是不是{adv}{a}？",
+        "o_is_a": f"{o}是不是{a}的？",
+        "s_de_o_a": f"{s}的{o}是不是很{a}？",
+        "s_think_o_a": f"{s}是不是觉得{o}很{a}？",
+        "place_has_o": f"{place}是不是有{o}？",
+        "want_svo": f"{s}是不是想{v}{o}？",
+        "can_svo": f"{s}是不是会{v}{o}？",
+        "like_svo": f"{s}是不是喜欢{v}{o}？",
+        "no_svo": f"{s}是不是没有{v}{o}？",
+        "le_svo": f"{s}是不是{v}了{o}？",
+        "s_place": f"{s}是不是在{place}？",
+        "o_place": f"{o}是不是在{place}？",
+    }[p]
+
+
+def slot_contexts(row: dict) -> list[str]:
+    """同一个槽位组合的多种问法，避免模型只背一个模板。"""
+    base = slot_context(row)
+    return [
+        base,
+        f"我想问一下，{base}",
+        f"听说{base}",
+        f"{base}对不对？",
+        f"你告诉我，{base}",
+    ]
+
+
+def row_label(row: dict) -> dict:
+    return {"mode": 0, "pattern": row["pattern"],
+            "fixed_text": row["text"], **row}
 
 
 def load_rows(path: str, limit: int, seed: int):
@@ -114,6 +159,7 @@ def main() -> int:
     parser.add_argument("--samples", type=int, default=20000)
     parser.add_argument("--eval-samples", type=int, default=2000)
     parser.add_argument("--row-limit", type=int, default=30000)
+    parser.add_argument("--synth-per-row", type=int, default=4)
     parser.add_argument("--table-size", type=int, default=30000)
     parser.add_argument("--dedup-threshold", type=float, default=0.9)
     parser.add_argument("--epochs", type=int, default=8)
@@ -152,8 +198,16 @@ def main() -> int:
                 extra_count += 1
     print(f"教师回流 {extra_count} 条")
     rows, fixed = load_rows(args.rows, args.row_limit, args.seed)
+    split = max(1, int(len(rows) * 0.9))
+    synth_train_rows, synth_eval_rows = rows[:split], rows[split:]
+    synth_train = []
+    for row in synth_train_rows:
+        for context in slot_contexts(row)[:args.synth_per_row]:
+            synth_train.append((context, row))
+    synth_eval = [(slot_context(r), r) for r in synth_eval_rows]
     print(f"组合句候选 {len(rows)}，固定句 {len(fixed)}；"
-          f"训练 {len(train_raw)}，评测 {len(eval_raw)}")
+          f"训练 {len(train_raw)} + 合成 {len(synth_train)}，"
+          f"评测 {len(eval_raw)} + 合成 {len(synth_eval)}")
 
     fixed_texts = [row["text"] for row in fixed]
     fixed_index = {text: i for i, text in enumerate(fixed_texts)}
@@ -185,11 +239,16 @@ def main() -> int:
                             "fixed_text": text, **row})
         return out
 
-    train_y, eval_y = labels(train_raw), labels(eval_raw)
-    train_x = encode(enc, [row[0] for row in train_raw],
-                     os.path.join(HERE, f"factorized_train_x_{args.samples}_{args.seed}.npz"))
-    eval_x = encode(enc, [row[0] for row in eval_raw],
-                    os.path.join(HERE, f"factorized_eval_x_{args.eval_samples}_{args.seed}.npz"))
+    train_y = labels(train_raw) + [row_label(r) for _, r in synth_train]
+    eval_y = labels(eval_raw) + [row_label(r) for _, r in synth_eval]
+    train_contexts = ([row[0] for row in train_raw]
+                      + [context for context, _ in synth_train])
+    eval_contexts = ([row[0] for row in eval_raw]
+                     + [context for context, _ in synth_eval])
+    train_x = encode(enc, train_contexts,
+                     os.path.join(HERE, f"factorized_train_x_{args.samples}_{args.seed}_{args.synth_per_row}.npz"))
+    eval_x = encode(enc, eval_contexts,
+                    os.path.join(HERE, f"factorized_eval_x_{args.eval_samples}_{args.seed}_{args.synth_per_row}.npz"))
     x = torch.tensor(train_x, dtype=torch.float32)
     ex = torch.tensor(eval_x, dtype=torch.float32)
 
@@ -260,10 +319,38 @@ def main() -> int:
                 "config": {"dim": x.shape[1], "hidden": args.hidden,
                            "n_fixed": len(fixed_texts)},
                 "fixed_texts": fixed_texts, "rows": rows}, args.out)
+
+    syn_y = [row_label(r) for _, r in synth_eval]
+    _, _, syn_p, syn_s, syn_m = pack(syn_y)
+    syn_x = torch.tensor(encode(
+        enc, [context for context, _ in synth_eval],
+        os.path.join(HERE, f"factorized_synth_eval_{args.row_limit}_{args.seed}.npz")))
+    with torch.no_grad():
+        out_s = model(syn_x)
+    syn_pattern = (out_s["pattern"].argmax(1) == syn_p).float().mean().item()
+    correct = total = 0
+    for name in VOCAB:
+        m = syn_m[name]
+        if m.any():
+            correct += (out_s[name].argmax(1)[m] == syn_s[name][m]).sum().item()
+            total += m.sum().item()
+    syn_slot = correct / max(1, total)
+    exact = 0
+    for i, (_, row) in enumerate(synth_eval[:2000]):
+        p = PATTERN_NAMES[int(out_s["pattern"][i].argmax())]
+        vals = {TEMPLATE_KEY[name]: VOCAB[name][int(out_s[name][i].argmax())]
+                for name in FIELDS[p]}
+        exact += int(PATTERN_TEMPLATE[p].format(**vals) == row["text"])
+    syn_exact = exact / max(1, min(2000, len(synth_eval_rows)))
+
     report = {"samples": len(train_raw), "extra": extra_count,
               "rows": len(rows), "fixed": len(fixed_texts),
+              "row_limit": args.row_limit, "synth_per_row": args.synth_per_row,
+              "hidden": args.hidden,
               "mode_acc": mode_acc, "pattern_acc": pattern_acc,
-              "slot_acc": slot_acc}
+              "slot_acc": slot_acc,
+              "synth_pattern": syn_pattern, "synth_slot": syn_slot,
+              "synth_exact": syn_exact}
     with open(REPORT, "w", encoding="utf-8") as fh:
         json.dump(report, fh, ensure_ascii=False, indent=1)
     print(json.dumps(report, ensure_ascii=False, indent=1))

@@ -15,6 +15,7 @@ import torch.nn.functional as F
 
 from ..sentence import HFSentenceEncoder
 from .context_train import ContextGRUNet, format_context, line_list
+from .exhaustive import PLACE, SUBJ
 from .persona import NAME_GET, extract_name, format_line
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -80,6 +81,41 @@ def answer(history: list[tuple[str, str]], message: str):
         if name:
             break
         name = extract_name(player)
+    last_player = history[-1][0] if history else ""
+
+    # 最近说过的不重复；没有名字/上一句时不选对应模板。
+    avoid = {reply for _, reply in history[-8:]}
+    valid = []
+    for i in candidates:
+        text = _STATE["texts"][i]
+        if text in avoid:
+            continue
+        if "{player_name}" in text and not name:
+            continue
+        if "{last_player}" in text and not last_player:
+            continue
+        valid.append(i)
+    if valid:
+        candidates = valid
+
+    # 问句里明确提到的主体/处所，优先选包含它的候选。
+    for subject in SUBJ[2:]:
+        if subject in message:
+            hit = [i for i in candidates if subject in _STATE["texts"][i]]
+            if hit:
+                candidates = hit
+            break
+    if "你" in message:
+        hit = [i for i in candidates if "我" in _STATE["texts"][i]]
+        if hit:
+            candidates = hit
+    for place in PLACE:
+        if place in message:
+            hit = [i for i in candidates if place in _STATE["texts"][i]]
+            if hit:
+                candidates = hit
+            break
+
     idx = candidates[0]
     # 问名字时，优先真的带名字的候选。
     if name and any(key in message for key in NAME_GET):
@@ -96,7 +132,6 @@ def answer(history: list[tuple[str, str]], message: str):
                     and not _clash(_STATE["texts"][i], message):
                 idx = i
                 break
-    last_player = history[-1][0] if history else ""
     reply = format_line(_STATE["texts"][idx],
                         {"player_name": name, "last_player": last_player})
     beat = _STATE["beats"][idx]

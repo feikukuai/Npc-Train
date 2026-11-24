@@ -295,7 +295,12 @@ def format_line(line: str, state: dict) -> str:
     if "{player_name}" in line:
         line = line.replace("{player_name}", state.get("player_name") or "你")
     if "{last_player}" in line:
-        line = line.replace("{last_player}", state.get("last_player") or "你刚才的话")
+        last = state.get("last_player") or "你刚才的话"
+        last = last.rstrip("。！？…，,.!? ") if "「" in line \
+            else last.rstrip("。…，,.!? ")
+        line = line.replace("{last_player}", last)
+    # 玩家原话自带问号/句号时，不要再补一个。
+    line = re.sub(r"([？?！!…])。", r"\1", line)
     return line
 
 

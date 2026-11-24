@@ -1,6 +1,11 @@
 __pycache__/
 *.pyc
 bank_runtime.json
+expertnet/zh/context_net*.pt
+expertnet/zh/context_lines_*.npz
+expertnet/zh/context_train_*.npz
+expertnet/zh/context_eval_*.npz
+expertnet/zh/context_report*.json
 expertnet/checkpoint.pt
 expertnet/metrics.json
 expertnet/ablation.json
@@ -26,3 +31,4 @@ expertnet/_smoke*
 !expertnet/zh/atoms_zh_metrics.json
 !expertnet/zh/adversarial.jsonl
 !expertnet/zh/adversarial_report.json
+expertnet/zh/bank_report.json

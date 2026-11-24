@@ -35,7 +35,8 @@ class HFSentenceEncoder:
     """
 
     def __init__(self, name: str = "sentence-transformers/all-MiniLM-L6-v2",
-                 cache_dir: str | None = None, pooling: str = "mean"):
+                 cache_dir: str | None = None, pooling: str = "mean",
+                 max_length: int = 96):
         import os
 
         os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
@@ -43,6 +44,7 @@ class HFSentenceEncoder:
 
         self.name = name
         self.pooling = pooling
+        self.max_length = max_length
         # Prefer the local cache: a hub check per process is slow and fails offline.
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -68,7 +70,7 @@ class HFSentenceEncoder:
         for i in range(0, len(todo), 64):
             chunk = todo[i:i + 64]
             batch = self.tokenizer(chunk, padding=True, truncation=True,
-                                   max_length=96, return_tensors="pt")
+                                   max_length=self.max_length, return_tensors="pt")
             hidden = self.model(**batch).last_hidden_state
             mask = batch["attention_mask"].unsqueeze(-1).to(hidden.dtype)
             if self.pooling == "cls":

@@ -15,6 +15,8 @@ import torch.nn.functional as F
 
 from ..atoms import make_model
 from ..sentence import HFSentenceEncoder
+from .bank import get_bank
+from .grammar import SPEC as GRAMMAR_SPEC
 from .persona import FACTS, format_line, new_state, teacher_turn, zh_state_vector
 from .thought import THOUGHTS
 
@@ -29,6 +31,9 @@ SECRET_ATOMS = {fact["text"] for fact in FACTS.values() if fact.get("tier", 0) >
 RULE_ONLY = {"boundary", "threat", "meta", "trade", "gift", "promise", "personal",
              "lore", "secret", "secret_denied", "name_saved", "name_recall",
              "name_unknown", "out_of_world", "fallback"}
+# Every beat the grammar bank can render. Facts, secrets and safety lines are not
+# in it: those keep the teacher's exact wording.
+BANK_BEATS = frozenset(GRAMMAR_SPEC)
 
 _LOCK = threading.Lock()
 _MODEL = {"tried": False, "ready": False, "error": "",
@@ -106,24 +111,39 @@ def model_error() -> str:
 
 def warmup() -> None:
     threading.Thread(target=ensure_model, daemon=True).start()
+    threading.Thread(target=get_bank, daemon=True).start()
 
 
 def new_session() -> dict:
-    return {"state": new_state(), "h": None}
+    return {"state": new_state(), "h": None, "said": []}
 
 
 def reply(session: dict | None, text: str) -> tuple[dict, dict]:
     session = session or new_session()
     state = dict(session.get("state") or new_state())
+    state["recent"] = [dict(row) for row in state.get("recent") or []]
+    said = list(session.get("said") or [])
     h = session.get("h")
     previous = state.get("last_beat")
 
     rule_template, beat = teacher_turn(text, state)
     rule = format_line(rule_template, state)
     result = {"rule": rule, "atom": None, "reply": rule, "used": "规则",
-              "confidence": None,
+              "beat": beat, "confidence": None,
               "state": {"trust": state["trust"], "turn": state["turn"],
                         "player_name": state.get("player_name", "")}}
+
+    # 句库是主要出口：同一个 beat 里有几千种说法，按情绪、玩家用词和最近说过的话挑。
+    bank_line = None
+    if beat in BANK_BEATS:
+        try:
+            bank = get_bank()
+            bank_line = bank.pick(beat, state, text, said)
+            result["bank_size"] = bank.size
+            if bank_line:
+                result.update(reply=bank_line, used="句库")
+        except Exception as exc:
+            result["bank_error"] = f"{type(exc).__name__}: {exc}"[:200]
 
     if ensure_model():
         try:
@@ -155,14 +175,19 @@ def reply(session: dict | None, text: str) -> tuple[dict, dict]:
             thought = "-"
             if getattr(_MODEL["model"], "last_thoughts", None) is not None:
                 thought = THOUGHTS[int(_MODEL["model"].last_thoughts[0, 0].argmax())]
-            result.update(atom=line, used="句库", confidence=round(float(probs.max()), 3),
+            result.update(atom=line, confidence=round(float(probs.max()), 3),
                           thought=thought)
-            if beat in RULE_ONLY:
-                result.update(reply=rule, used="规则")
-            else:
-                result["reply"] = line
+            if not bank_line:
+                if beat in RULE_ONLY:
+                    result.update(reply=rule, used="规则")
+                else:
+                    result.update(reply=line, used="句库")
             h = new_h[0].tolist()
         except Exception as exc:
             result["error"] = str(exc)[:200]
 
-    return {"state": state, "h": h}, result
+    if state.get("recent"):
+        state["recent"][-1]["reply"] = result["reply"]
+    said.append(result["reply"])
+    del said[:-8]
+    return {"state": state, "h": h, "said": said}, result

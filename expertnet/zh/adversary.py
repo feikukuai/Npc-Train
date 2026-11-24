@@ -18,6 +18,7 @@ import torch.nn.functional as F
 
 from .corpus import SEEDS
 from .persona import extract_name, new_state, teacher_turn, zh_state_vector
+from .thought import THOUGHTS, thought_of
 
 ARCS = [
     ["insult", "farewell"],
@@ -25,11 +26,13 @@ ARCS = [
     ["insult", "greeting"],
     ["gift", "thanks", "insult", "farewell"],
     ["name", "name", "name"],
-    ["name", "personal", "name"],
+    ["name", "personal", "name", "memory"],
     ["secret", "secret", "secret"],
+    ["threat", "taunt", "apology", "apology_meta", "memory"],
     ["threat", "apology", "farewell"],
     ["out_of_world", "out_of_world", "personal"],
     ["greeting", "smalltalk_how", "personal", "lore", "farewell"],
+    ["greeting", "personal", "memory", "farewell"],
     ["smalltalk_bored", "smalltalk_joke", "smalltalk_weather", "farewell"],
     ["trade", "gift", "thanks", "farewell"],
 ]
@@ -49,7 +52,8 @@ def label_session(session: dict) -> list[tuple]:
         snapshot = {"trust": state["trust"], "turn": state["turn"],
                     "guild": False, "revealed": list(state["revealed"]),
                     "last_beat": previous, "mood": state["mood"],
-                    "player_name": state["player_name"]}
+                    "player_name": state["player_name"],
+                    "last_player": state.get("last_player", "")}
         rows.append((text, snapshot, line, beat))
     return rows
 
@@ -161,6 +165,9 @@ def audit(model, hf, sessions, atoms, atom_index, beat_index, atom_beats,
             pred = atoms[pred_idx]
             hit = pred == target
             behaviour = int(atom_beats[pred_idx]) == beat_index.get(beat, -1)
+            thought_target = thought_of(previous, state["player_name"], beat)
+            thought_pred = (THOUGHTS[int(model.last_thoughts[0, 0].argmax())]
+                            if getattr(model, "last_thoughts", None) is not None else "-")
             if "名字" in text or "我叫什么" in text:
                 category = "name"
             elif previous in ("insult", "threat") and beat in (
@@ -177,6 +184,8 @@ def audit(model, hf, sessions, atoms, atom_index, beat_index, atom_beats,
                 "trust": state["trust"], "category": category,
                 "target": target, "pred": pred, "hit": bool(hit),
                 "behaviour": bool(behaviour), "beat": beat,
+                "thought_target": thought_target, "thought": thought_pred,
+                "thought_hit": bool(thought_target == thought_pred),
                 "confidence": round(float(probs.max()), 3),
             })
     return records, summarize(records)
@@ -185,10 +194,11 @@ def audit(model, hf, sessions, atoms, atom_index, beat_index, atom_beats,
 def summarize(records: list[dict]) -> dict:
     def agg(rows):
         if not rows:
-            return {"n": 0, "atom": 0.0, "behaviour": 0.0}
+            return {"n": 0, "atom": 0.0, "behaviour": 0.0, "thought": 0.0}
         return {"n": len(rows),
                 "atom": round(sum(r["hit"] for r in rows) / len(rows), 3),
-                "behaviour": round(sum(r["behaviour"] for r in rows) / len(rows), 3)}
+                "behaviour": round(sum(r["behaviour"] for r in rows) / len(rows), 3),
+                "thought": round(sum(r["thought_hit"] for r in rows) / len(rows), 3)}
 
     by_category = {}
     for category in sorted({r["category"] for r in records}):

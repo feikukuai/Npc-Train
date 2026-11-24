@@ -13,8 +13,6 @@ import re
 
 import torch
 
-from ..model import STATE_DIM
-
 NAME = "阿禾"
 
 FACTS = {
@@ -61,6 +59,9 @@ LINES = {
     "taunt": ["我娘真的会来！", "你别逼我。"],
     "memory_first": ["我们才刚见面呀。"],
     "memory_hurt": ["你刚才凶我了。", "你刚才骂我了。"],
+    "memory_quote": ["你刚才说：{last_player}。"],
+    "memory_name": ["你刚才问我记不记得你的名字。"],
+    "memory_repeat": ["你刚才也在问刚才的事。"],
     "insult": ["你凶我，我要告诉娘。", "我不跟你玩了。", "哼。"],
     "compliment": ["嘿嘿。", "娘也这么说。", "你再说一遍。"],
     "smalltalk_how": ["我在数蚂蚁。", "今天有糖吗？", "我很好，就是有点饿。"],
@@ -88,8 +89,9 @@ BEATS = [
     "smalltalk_weather", "smalltalk_bored", "smalltalk_joke", "trade", "gift",
     "promise", "threat", "meta", "boundary", "secret_denied", "out_of_world",
     "fallback", "personal", "lore", "secret", "name_saved", "name_recall",
-    "name_unknown",
+    "name_unknown", "memory_recall", "taunt", "apology_meta",
 ]
+ZH_STATE_DIM = 4 + len(BEATS) + 2
 
 INSULT_KEYS = ["笨", "讨厌", "傻瓜", "丑", "走开", "蠢", "离我远"]
 THREAT_KEYS = ["打死", "杀了", "抢你", "抢走", "卖了你", "揍", "打你"]
@@ -103,8 +105,6 @@ NAME_GET = ["我叫什么", "我的名字", "记得我叫", "知道我名字", "
 NAME_SET = re.compile(r"(?:我叫|我的名字(?:是|叫)|叫我)([\u4e00-\u9fa5A-Za-z]{1,8})")
 
 # New rule-only beats share the old state width through aliases.
-BEAT_ALIASES = {"memory_recall": "fallback", "taunt": "threat",
-                "apology_meta": "apology"}
 MEMORY_BEATS = {
     "threat": "你刚才凶我了。",
     "insult": "你刚才骂我了。",
@@ -113,6 +113,7 @@ MEMORY_BEATS = {
     "name_saved": "你刚才告诉我你叫什么。",
     "gift": "你刚才送我东西。",
     "apology": "你刚才道歉了。",
+    "apology_meta": "你刚才也在说原谅。",
     "memory_recall": "你刚才也在问刚才的事。",
 }
 
@@ -220,13 +221,16 @@ def _shift_mood(state: dict, text: str, intent: str) -> None:
 def teacher_turn(text: str, state: dict) -> tuple[str, str]:
     """Rule teacher used to build the training corpus. Mutates ``state``.
 
-    Returns a sentence template; ``{player_name}`` is filled at display time so the
-    atom vocabulary stays closed.
+    Returns a sentence template; ``{player_name}`` and ``{last_player}`` are filled
+    at display time so the atom vocabulary stays closed.
     """
     text = (text or "").strip()
     state["turn"] += 1
     turn = state["turn"]
     prev = state.get("last_beat")
+    recent = state.setdefault("recent", [])
+    previous_player = recent[-1]["player"] if recent else ""
+    state["last_player"] = previous_player
     new_name = extract_name(text)
     wants_name = _has(text, NAME_GET)
 
@@ -265,7 +269,7 @@ def teacher_turn(text: str, state: dict) -> tuple[str, str]:
             elif previous["beat"] in MEMORY_BEATS:
                 line = MEMORY_BEATS[previous["beat"]]
             else:
-                line = f"你刚才说：{previous['player']}。"
+                line = _pick(LINES["memory_quote"], turn)
             beat = "memory_recall"
         elif intent == "taunt":
             line, beat = _pick(LINES["taunt"], turn), "taunt"
@@ -289,13 +293,14 @@ def teacher_turn(text: str, state: dict) -> tuple[str, str]:
 
 def format_line(line: str, state: dict) -> str:
     if "{player_name}" in line:
-        return line.format(player_name=state.get("player_name") or "你")
+        line = line.replace("{player_name}", state.get("player_name") or "你")
+    if "{last_player}" in line:
+        line = line.replace("{last_player}", state.get("last_player") or "你刚才的话")
     return line
 
 
 def zh_state_vector(state: dict | None) -> torch.Tensor:
-    """34 dims, same width as the English state: 28 slots hold a one-hot over the
-    previous Chinese beat, then has_name and mood."""
+    """37 dims: trust/guild/turn/revealed, 31 beat slots, has_name, mood."""
     state = state or {}
     vec = [
         min(max(float(state.get("trust", 0)) / 100.0, 0.0), 1.0),
@@ -303,9 +308,9 @@ def zh_state_vector(state: dict | None) -> torch.Tensor:
         min(float(state.get("turn", 0)) / 20.0, 1.0),
         min(len(state.get("revealed", [])) / 10.0, 1.0),
     ]
-    prev = BEAT_ALIASES.get(state.get("last_beat"), state.get("last_beat"))
+    prev = state.get("last_beat")
     vec += [1.0 if prev == beat else 0.0 for beat in BEATS]
     vec.append(1.0 if state.get("player_name") else 0.0)
     vec.append((max(-1.0, min(1.0, float(state.get("mood", 0.0)))) + 1.0) / 2.0)
-    assert len(vec) == STATE_DIM, (len(vec), STATE_DIM)
+    assert len(vec) == ZH_STATE_DIM, (len(vec), ZH_STATE_DIM)
     return torch.tensor(vec, dtype=torch.float32)

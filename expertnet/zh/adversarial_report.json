@@ -1,439 +1,582 @@
 {
  "baseline": {
-  "heldout": 0.8166666626930237,
+  "heldout": 0.7691237926483154,
   "long": {
-   "n": 92,
-   "atom": 0.793,
-   "behaviour": 0.87,
+   "n": 108,
+   "atom": 0.815,
+   "behaviour": 0.889,
+   "thought": 0.935,
    "by_category": {
     "base": {
-     "n": 69,
-     "atom": 0.812,
-     "behaviour": 0.884
+     "n": 81,
+     "atom": 0.84,
+     "behaviour": 0.914,
+     "thought": 0.938
     },
     "long": {
-     "n": 8,
-     "atom": 0.625,
-     "behaviour": 0.75
+     "n": 10,
+     "atom": 0.7,
+     "behaviour": 0.9,
+     "thought": 1.0
     },
     "mood": {
      "n": 4,
-     "atom": 0.75,
-     "behaviour": 1.0
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "name": {
-     "n": 4,
-     "atom": 0.75,
-     "behaviour": 0.75
+     "n": 6,
+     "atom": 0.5,
+     "behaviour": 0.5,
+     "thought": 0.667
     },
     "secret": {
      "n": 7,
      "atom": 0.857,
-     "behaviour": 0.857
+     "behaviour": 0.857,
+     "thought": 1.0
     }
    },
    "by_beat": {
-    "farewell": {
-     "n": 11,
-     "atom": 0.545,
-     "behaviour": 0.727
-    },
     "greeting": {
-     "n": 10,
+     "n": 12,
+     "atom": 0.917,
+     "behaviour": 0.917,
+     "thought": 1.0
+    },
+    "farewell": {
+     "n": 12,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
+    },
+    "personal": {
+     "n": 9,
+     "atom": 0.667,
+     "behaviour": 0.778,
+     "thought": 0.889
     },
     "smalltalk_bored": {
      "n": 6,
-     "atom": 0.667,
-     "behaviour": 0.667
+     "atom": 0.5,
+     "behaviour": 0.667,
+     "thought": 0.833
     },
     "out_of_world": {
      "n": 6,
      "atom": 0.833,
-     "behaviour": 0.833
+     "behaviour": 0.833,
+     "thought": 1.0
     },
-    "personal": {
+    "fallback": {
      "n": 6,
-     "atom": 0.667,
-     "behaviour": 0.833
+     "atom": 0.833,
+     "behaviour": 0.833,
+     "thought": 1.0
     },
     "farewell_hurt": {
      "n": 5,
-     "atom": 0.8,
-     "behaviour": 1.0
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 0.8
+    },
+    "apology": {
+     "n": 5,
+     "atom": 0.6,
+     "behaviour": 1.0,
+     "thought": 1.0
+    },
+    "name_recall": {
+     "n": 5,
+     "atom": 0.6,
+     "behaviour": 0.6,
+     "thought": 0.8
     },
     "smalltalk_how": {
      "n": 5,
      "atom": 0.8,
-     "behaviour": 0.8
+     "behaviour": 0.8,
+     "thought": 0.8
     },
     "lore": {
      "n": 5,
      "atom": 1.0,
-     "behaviour": 1.0
-    },
-    "fallback": {
-     "n": 5,
-     "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 0.8
     },
     "insult": {
      "n": 4,
+     "atom": 0.75,
+     "behaviour": 1.0,
+     "thought": 1.0
+    },
+    "name_saved": {
+     "n": 4,
      "atom": 1.0,
-     "behaviour": 1.0
-    },
-    "apology": {
-     "n": 4,
-     "atom": 0.75,
-     "behaviour": 1.0
-    },
-    "name_recall": {
-     "n": 4,
-     "atom": 0.75,
-     "behaviour": 0.75
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "secret_denied": {
      "n": 4,
      "atom": 1.0,
-     "behaviour": 1.0
-    },
-    "name_saved": {
-     "n": 3,
-     "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "thanks": {
      "n": 3,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "secret": {
      "n": 3,
      "atom": 0.667,
-     "behaviour": 0.667
+     "behaviour": 0.667,
+     "thought": 1.0
+    },
+    "memory_recall": {
+     "n": 3,
+     "atom": 0.333,
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "greeting_hurt": {
      "n": 2,
-     "atom": 0.5,
-     "behaviour": 0.5
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "gift": {
      "n": 2,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 0.5
     },
     "smalltalk_joke": {
      "n": 2,
-     "atom": 0.0,
-     "behaviour": 1.0
+     "atom": 0.5,
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "threat": {
-     "n": 1,
+     "n": 2,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "greeting_again": {
      "n": 1,
      "atom": 0.0,
-     "behaviour": 0.0
+     "behaviour": 0.0,
+     "thought": 1.0
+    },
+    "taunt": {
+     "n": 1,
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 1.0
+    },
+    "apology_meta": {
+     "n": 1,
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 1.0
     }
    }
   }
  },
- "baseline_score": 1.2665,
+ "baseline_score": 1.2965,
  "rounds": [
   {
    "round": 1,
-   "loss": 0.136,
+   "loss": 0.182,
    "attacker_turns": 1120,
    "fresh": {
     "n": 1120,
-    "atom": 0.813,
-    "behaviour": 0.921,
+    "atom": 0.808,
+    "behaviour": 0.912,
+    "thought": 0.957,
     "by_category": {
      "base": {
-      "n": 436,
-      "atom": 0.869,
-      "behaviour": 0.908
+      "n": 490,
+      "atom": 0.855,
+      "behaviour": 0.906,
+      "thought": 0.957
      },
      "long": {
-      "n": 324,
-      "atom": 0.731,
-      "behaviour": 0.932
+      "n": 355,
+      "atom": 0.659,
+      "behaviour": 0.899,
+      "thought": 0.961
      },
      "mood": {
-      "n": 125,
-      "atom": 0.808,
-      "behaviour": 0.944
+      "n": 108,
+      "atom": 0.88,
+      "behaviour": 0.926,
+      "thought": 0.907
      },
      "name": {
-      "n": 147,
-      "atom": 0.816,
-      "behaviour": 0.946
+      "n": 88,
+      "atom": 0.966,
+      "behaviour": 0.989,
+      "thought": 0.989
      },
      "secret": {
-      "n": 88,
-      "atom": 0.841,
-      "behaviour": 0.864
+      "n": 79,
+      "atom": 0.911,
+      "behaviour": 0.911,
+      "thought": 0.975
      }
     },
     "by_beat": {
-     "insult": {
-      "n": 133,
-      "atom": 0.774,
-      "behaviour": 0.902
-     },
      "farewell_hurt": {
-      "n": 128,
-      "atom": 0.852,
-      "behaviour": 0.938
+      "n": 126,
+      "atom": 0.841,
+      "behaviour": 0.881,
+      "thought": 0.937
      },
-     "name_recall": {
-      "n": 117,
-      "atom": 0.769,
-      "behaviour": 0.932
+     "insult": {
+      "n": 118,
+      "atom": 0.678,
+      "behaviour": 0.839,
+      "thought": 0.941
      },
      "personal": {
-      "n": 94,
+      "n": 91,
       "atom": 0.989,
-      "behaviour": 0.989
+      "behaviour": 0.989,
+      "thought": 0.945
+     },
+     "name_recall": {
+      "n": 72,
+      "atom": 0.958,
+      "behaviour": 0.986,
+      "thought": 1.0
      },
      "greeting_hurt": {
-      "n": 72,
-      "atom": 0.778,
-      "behaviour": 0.889
-     },
-     "out_of_world": {
-      "n": 66,
-      "atom": 0.758,
-      "behaviour": 0.985
+      "n": 69,
+      "atom": 0.797,
+      "behaviour": 0.87,
+      "thought": 0.913
      },
      "gift": {
       "n": 62,
-      "atom": 0.839,
-      "behaviour": 0.935
+      "atom": 0.903,
+      "behaviour": 0.968,
+      "thought": 0.903
      },
-     "secret_denied": {
-      "n": 54,
-      "atom": 0.815,
-      "behaviour": 0.852
+     "out_of_world": {
+      "n": 52,
+      "atom": 0.692,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
-     "name_saved": {
-      "n": 50,
-      "atom": 1.0,
-      "behaviour": 1.0
+     "thanks": {
+      "n": 47,
+      "atom": 0.66,
+      "behaviour": 0.915,
+      "thought": 1.0
      },
      "farewell": {
       "n": 45,
-      "atom": 0.778,
-      "behaviour": 0.844
+      "atom": 0.8,
+      "behaviour": 0.933,
+      "thought": 0.978
      },
-     "thanks": {
-      "n": 43,
-      "atom": 0.767,
-      "behaviour": 0.953
+     "memory_recall": {
+      "n": 44,
+      "atom": 0.636,
+      "behaviour": 0.864,
+      "thought": 0.818
      },
      "secret": {
-      "n": 34,
-      "atom": 0.882,
-      "behaviour": 0.882
-     },
-     "smalltalk_how": {
-      "n": 32,
-      "atom": 0.781,
-      "behaviour": 0.969
+      "n": 43,
+      "atom": 0.837,
+      "behaviour": 0.837,
+      "thought": 1.0
      },
      "greeting": {
-      "n": 31,
-      "atom": 0.516,
-      "behaviour": 0.645
+      "n": 42,
+      "atom": 0.571,
+      "behaviour": 0.738,
+      "thought": 0.976
      },
-     "smalltalk_joke": {
-      "n": 25,
-      "atom": 0.88,
-      "behaviour": 0.96
+     "name_saved": {
+      "n": 38,
+      "atom": 0.947,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
-     "lore": {
-      "n": 23,
+     "secret_denied": {
+      "n": 36,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 0.944
      },
      "threat": {
-      "n": 23,
-      "atom": 0.87,
-      "behaviour": 1.0
+      "n": 33,
+      "atom": 0.97,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "apology": {
-      "n": 21,
-      "atom": 0.619,
-      "behaviour": 0.952
+      "n": 32,
+      "atom": 0.625,
+      "behaviour": 0.938,
+      "thought": 1.0
+     },
+     "smalltalk_bored": {
+      "n": 24,
+      "atom": 0.5,
+      "behaviour": 0.667,
+      "thought": 1.0
+     },
+     "smalltalk_joke": {
+      "n": 22,
+      "atom": 0.909,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "trade": {
       "n": 20,
-      "atom": 0.85,
-      "behaviour": 0.95
+      "atom": 0.75,
+      "behaviour": 0.95,
+      "thought": 0.95
      },
-     "smalltalk_bored": {
-      "n": 17,
-      "atom": 0.471,
-      "behaviour": 0.647
+     "smalltalk_how": {
+      "n": 19,
+      "atom": 0.684,
+      "behaviour": 0.789,
+      "thought": 1.0
      },
-     "compliment": {
-      "n": 16,
-      "atom": 0.625,
-      "behaviour": 0.812
+     "lore": {
+      "n": 18,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "smalltalk_weather": {
-      "n": 13,
-      "atom": 0.923,
-      "behaviour": 1.0
+      "n": 16,
+      "atom": 0.875,
+      "behaviour": 0.938,
+      "thought": 0.938
+     },
+     "apology_meta": {
+      "n": 16,
+      "atom": 0.938,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "compliment": {
+      "n": 12,
+      "atom": 0.583,
+      "behaviour": 0.833,
+      "thought": 1.0
+     },
+     "taunt": {
+      "n": 12,
+      "atom": 0.917,
+      "behaviour": 1.0,
+      "thought": 0.917
+     },
+     "fallback": {
+      "n": 10,
+      "atom": 0.9,
+      "behaviour": 0.9,
+      "thought": 0.9
      },
      "greeting_again": {
       "n": 1,
       "atom": 0.0,
-      "behaviour": 0.0
+      "behaviour": 0.0,
+      "thought": 1.0
      }
     }
    },
-   "hard_sessions": 227,
-   "heldout": 0.8152777552604675,
+   "hard_sessions": 230,
+   "heldout": 0.7691237926483154,
    "long": {
-    "n": 92,
-    "atom": 0.848,
-    "behaviour": 0.859,
+    "n": 108,
+    "atom": 0.88,
+    "behaviour": 0.898,
+    "thought": 0.917,
     "by_category": {
      "base": {
-      "n": 69,
-      "atom": 0.855,
-      "behaviour": 0.87
+      "n": 81,
+      "atom": 0.889,
+      "behaviour": 0.914,
+      "thought": 0.914
      },
      "long": {
-      "n": 8,
-      "atom": 0.75,
-      "behaviour": 0.75
+      "n": 10,
+      "atom": 0.9,
+      "behaviour": 0.9,
+      "thought": 0.9
      },
      "mood": {
       "n": 4,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "name": {
-      "n": 4,
-      "atom": 1.0,
-      "behaviour": 1.0
+      "n": 6,
+      "atom": 0.5,
+      "behaviour": 0.5,
+      "thought": 0.833
      },
      "secret": {
       "n": 7,
-      "atom": 0.714,
-      "behaviour": 0.714
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
      }
     },
     "by_beat": {
-     "farewell": {
-      "n": 11,
-      "atom": 0.909,
-      "behaviour": 0.909
-     },
      "greeting": {
-      "n": 10,
-      "atom": 0.8,
-      "behaviour": 0.8
+      "n": 12,
+      "atom": 0.833,
+      "behaviour": 0.833,
+      "thought": 0.917
+     },
+     "farewell": {
+      "n": 12,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "personal": {
+      "n": 9,
+      "atom": 0.667,
+      "behaviour": 0.778,
+      "thought": 1.0
      },
      "smalltalk_bored": {
       "n": 6,
       "atom": 0.667,
-      "behaviour": 0.667
+      "behaviour": 0.667,
+      "thought": 0.833
      },
      "out_of_world": {
       "n": 6,
       "atom": 0.833,
-      "behaviour": 0.833
+      "behaviour": 0.833,
+      "thought": 0.833
      },
-     "personal": {
+     "fallback": {
       "n": 6,
-      "atom": 0.667,
-      "behaviour": 0.833
+      "atom": 0.833,
+      "behaviour": 0.833,
+      "thought": 1.0
      },
      "farewell_hurt": {
       "n": 5,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 0.8
+     },
+     "apology": {
+      "n": 5,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.8
+     },
+     "name_recall": {
+      "n": 5,
+      "atom": 0.6,
+      "behaviour": 0.6,
+      "thought": 0.8
      },
      "smalltalk_how": {
       "n": 5,
-      "atom": 0.8,
-      "behaviour": 0.8
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.8
      },
      "lore": {
       "n": 5,
       "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "fallback": {
-      "n": 5,
-      "atom": 0.8,
-      "behaviour": 0.8
+      "behaviour": 1.0,
+      "thought": 0.8
      },
      "insult": {
       "n": 4,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
-     "apology": {
+     "name_saved": {
       "n": 4,
       "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "name_recall": {
-      "n": 4,
-      "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "secret_denied": {
       "n": 4,
-      "atom": 0.75,
-      "behaviour": 0.75
-     },
-     "name_saved": {
-      "n": 3,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "thanks": {
       "n": 3,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "secret": {
       "n": 3,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "memory_recall": {
+      "n": 3,
       "atom": 0.667,
-      "behaviour": 0.667
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "greeting_hurt": {
       "n": 2,
-      "atom": 0.5,
-      "behaviour": 0.5
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "gift": {
       "n": 2,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 0.5
      },
      "smalltalk_joke": {
       "n": 2,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "threat": {
-      "n": 1,
+      "n": 2,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "greeting_again": {
       "n": 1,
       "atom": 0.0,
-      "behaviour": 0.0
+      "behaviour": 0.0,
+      "thought": 1.0
+     },
+     "taunt": {
+      "n": 1,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "apology_meta": {
+      "n": 1,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
      }
     }
    },
@@ -441,740 +584,988 @@
   },
   {
    "round": 2,
-   "loss": 0.051,
+   "loss": 0.195,
    "attacker_turns": 1120,
    "fresh": {
     "n": 1120,
-    "atom": 0.922,
-    "behaviour": 0.945,
+    "atom": 0.912,
+    "behaviour": 0.937,
+    "thought": 0.937,
     "by_category": {
      "base": {
-      "n": 494,
-      "atom": 0.96,
-      "behaviour": 0.964
-     },
-     "long": {
-      "n": 367,
-      "atom": 0.872,
-      "behaviour": 0.926
-     },
-     "mood": {
-      "n": 89,
-      "atom": 0.944,
-      "behaviour": 0.944
-     },
-     "name": {
-      "n": 108,
-      "atom": 0.926,
-      "behaviour": 0.954
-     },
-     "secret": {
-      "n": 62,
-      "atom": 0.887,
-      "behaviour": 0.887
-     }
-    },
-    "by_beat": {
-     "farewell_hurt": {
-      "n": 119,
-      "atom": 0.891,
-      "behaviour": 0.908
-     },
-     "personal": {
-      "n": 108,
-      "atom": 0.981,
-      "behaviour": 0.981
-     },
-     "insult": {
-      "n": 106,
-      "atom": 0.943,
-      "behaviour": 0.962
-     },
-     "name_recall": {
-      "n": 90,
-      "atom": 0.956,
-      "behaviour": 0.989
-     },
-     "out_of_world": {
-      "n": 78,
-      "atom": 0.897,
-      "behaviour": 0.987
-     },
-     "greeting_hurt": {
-      "n": 69,
-      "atom": 0.899,
-      "behaviour": 0.899
-     },
-     "gift": {
-      "n": 65,
-      "atom": 0.969,
-      "behaviour": 0.985
-     },
-     "farewell": {
-      "n": 59,
-      "atom": 0.864,
-      "behaviour": 0.864
-     },
-     "thanks": {
-      "n": 50,
-      "atom": 0.96,
-      "behaviour": 1.0
-     },
-     "secret_denied": {
-      "n": 46,
-      "atom": 0.87,
-      "behaviour": 0.87
-     },
-     "smalltalk_how": {
-      "n": 46,
-      "atom": 0.87,
-      "behaviour": 0.891
-     },
-     "lore": {
-      "n": 36,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "name_saved": {
-      "n": 34,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "greeting": {
-      "n": 34,
-      "atom": 0.735,
-      "behaviour": 0.794
-     },
-     "smalltalk_joke": {
-      "n": 29,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "threat": {
-      "n": 28,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "smalltalk_bored": {
-      "n": 28,
-      "atom": 0.857,
-      "behaviour": 0.893
-     },
-     "apology": {
-      "n": 25,
-      "atom": 0.88,
-      "behaviour": 0.96
-     },
-     "smalltalk_weather": {
-      "n": 21,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "trade": {
-      "n": 18,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "secret": {
-      "n": 16,
-      "atom": 0.938,
-      "behaviour": 0.938
-     },
-     "compliment": {
-      "n": 11,
-      "atom": 0.727,
-      "behaviour": 0.909
-     },
-     "name_unknown": {
-      "n": 4,
-      "atom": 0.25,
-      "behaviour": 0.25
-     }
-    }
-   },
-   "hard_sessions": 135,
-   "heldout": 0.8138889074325562,
-   "long": {
-    "n": 92,
-    "atom": 0.88,
-    "behaviour": 0.88,
-    "by_category": {
-     "base": {
-      "n": 69,
-      "atom": 0.899,
-      "behaviour": 0.899
-     },
-     "long": {
-      "n": 8,
-      "atom": 0.75,
-      "behaviour": 0.75
-     },
-     "mood": {
-      "n": 4,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "name": {
-      "n": 4,
-      "atom": 0.75,
-      "behaviour": 0.75
-     },
-     "secret": {
-      "n": 7,
-      "atom": 0.857,
-      "behaviour": 0.857
-     }
-    },
-    "by_beat": {
-     "farewell": {
-      "n": 11,
-      "atom": 0.909,
-      "behaviour": 0.909
-     },
-     "greeting": {
-      "n": 10,
-      "atom": 0.9,
-      "behaviour": 0.9
-     },
-     "smalltalk_bored": {
-      "n": 6,
-      "atom": 0.667,
-      "behaviour": 0.667
-     },
-     "out_of_world": {
-      "n": 6,
-      "atom": 0.833,
-      "behaviour": 0.833
-     },
-     "personal": {
-      "n": 6,
-      "atom": 0.667,
-      "behaviour": 0.667
-     },
-     "farewell_hurt": {
-      "n": 5,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "smalltalk_how": {
-      "n": 5,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "lore": {
-      "n": 5,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "fallback": {
-      "n": 5,
-      "atom": 0.8,
-      "behaviour": 0.8
-     },
-     "insult": {
-      "n": 4,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "apology": {
-      "n": 4,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "name_recall": {
-      "n": 4,
-      "atom": 0.75,
-      "behaviour": 0.75
-     },
-     "secret_denied": {
-      "n": 4,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "name_saved": {
-      "n": 3,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "thanks": {
-      "n": 3,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "secret": {
-      "n": 3,
-      "atom": 0.667,
-      "behaviour": 0.667
-     },
-     "greeting_hurt": {
-      "n": 2,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "gift": {
-      "n": 2,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "smalltalk_joke": {
-      "n": 2,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "threat": {
-      "n": 1,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "greeting_again": {
-      "n": 1,
-      "atom": 0.0,
-      "behaviour": 0.0
-     }
-    }
-   },
-   "kept": true
-  },
-  {
-   "round": 3,
-   "loss": 0.637,
-   "attacker_turns": 1120,
-   "fresh": {
-    "n": 1120,
-    "atom": 0.923,
-    "behaviour": 0.942,
-    "by_category": {
-     "base": {
-      "n": 464,
-      "atom": 0.963,
-      "behaviour": 0.963
-     },
-     "long": {
-      "n": 353,
-      "atom": 0.904,
-      "behaviour": 0.926
-     },
-     "mood": {
-      "n": 103,
-      "atom": 0.951,
-      "behaviour": 0.951
-     },
-     "name": {
-      "n": 137,
-      "atom": 0.832,
-      "behaviour": 0.927
-     },
-     "secret": {
-      "n": 63,
-      "atom": 0.889,
-      "behaviour": 0.889
-     }
-    },
-    "by_beat": {
-     "farewell_hurt": {
-      "n": 140,
-      "atom": 0.907,
-      "behaviour": 0.914
-     },
-     "insult": {
-      "n": 115,
-      "atom": 0.948,
-      "behaviour": 0.965
-     },
-     "personal": {
-      "n": 104,
-      "atom": 0.99,
-      "behaviour": 0.99
-     },
-     "name_recall": {
-      "n": 91,
-      "atom": 0.846,
-      "behaviour": 0.945
-     },
-     "out_of_world": {
-      "n": 88,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "gift": {
-      "n": 65,
-      "atom": 0.954,
-      "behaviour": 0.969
-     },
-     "greeting_hurt": {
-      "n": 63,
-      "atom": 0.841,
-      "behaviour": 0.857
-     },
-     "thanks": {
-      "n": 49,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "name_saved": {
-      "n": 46,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "secret_denied": {
-      "n": 42,
-      "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "farewell": {
-      "n": 41,
-      "atom": 0.829,
-      "behaviour": 0.829
-     },
-     "smalltalk_how": {
-      "n": 39,
+      "n": 521,
       "atom": 0.923,
-      "behaviour": 0.949
+      "behaviour": 0.937,
+      "thought": 0.94
+     },
+     "long": {
+      "n": 385,
+      "atom": 0.891,
+      "behaviour": 0.935,
+      "thought": 0.925
+     },
+     "mood": {
+      "n": 79,
+      "atom": 0.911,
+      "behaviour": 0.949,
+      "thought": 0.911
+     },
+     "name": {
+      "n": 88,
+      "atom": 0.977,
+      "behaviour": 0.977,
+      "thought": 0.977
+     },
+     "secret": {
+      "n": 47,
+      "atom": 0.851,
+      "behaviour": 0.851,
+      "thought": 0.957
+     }
+    },
+    "by_beat": {
+     "personal": {
+      "n": 116,
+      "atom": 0.966,
+      "behaviour": 0.966,
+      "thought": 0.948
+     },
+     "farewell_hurt": {
+      "n": 106,
+      "atom": 0.84,
+      "behaviour": 0.887,
+      "thought": 0.906
+     },
+     "insult": {
+      "n": 90,
+      "atom": 0.889,
+      "behaviour": 0.911,
+      "thought": 0.822
+     },
+     "out_of_world": {
+      "n": 68,
+      "atom": 0.985,
+      "behaviour": 0.985,
+      "thought": 0.897
+     },
+     "name_recall": {
+      "n": 63,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "greeting_hurt": {
+      "n": 55,
+      "atom": 0.836,
+      "behaviour": 0.891,
+      "thought": 0.927
+     },
+     "greeting": {
+      "n": 52,
+      "atom": 0.827,
+      "behaviour": 0.865,
+      "thought": 0.942
+     },
+     "farewell": {
+      "n": 52,
+      "atom": 0.808,
+      "behaviour": 0.808,
+      "thought": 1.0
+     },
+     "gift": {
+      "n": 50,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.8
+     },
+     "memory_recall": {
+      "n": 47,
+      "atom": 0.872,
+      "behaviour": 0.979,
+      "thought": 0.936
+     },
+     "apology": {
+      "n": 46,
+      "atom": 0.957,
+      "behaviour": 1.0,
+      "thought": 0.935
+     },
+     "threat": {
+      "n": 45,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "smalltalk_how": {
+      "n": 44,
+      "atom": 0.886,
+      "behaviour": 0.909,
+      "thought": 1.0
+     },
+     "name_saved": {
+      "n": 37,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "thanks": {
+      "n": 34,
+      "atom": 0.971,
+      "behaviour": 1.0,
+      "thought": 0.971
      },
      "lore": {
       "n": 31,
-      "atom": 1.0,
-      "behaviour": 1.0
+      "atom": 0.968,
+      "behaviour": 0.968,
+      "thought": 0.935
      },
-     "greeting": {
-      "n": 29,
-      "atom": 0.69,
-      "behaviour": 0.69
-     },
-     "threat": {
-      "n": 27,
-      "atom": 1.0,
-      "behaviour": 1.0
+     "secret_denied": {
+      "n": 26,
+      "atom": 0.808,
+      "behaviour": 0.808,
+      "thought": 0.923
      },
      "smalltalk_joke": {
-      "n": 26,
-      "atom": 1.0,
-      "behaviour": 1.0
+      "n": 24,
+      "atom": 0.833,
+      "behaviour": 0.917,
+      "thought": 1.0
      },
-     "apology": {
-      "n": 26,
-      "atom": 0.962,
-      "behaviour": 0.962
+     "apology_meta": {
+      "n": 22,
+      "atom": 0.864,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "secret": {
       "n": 21,
-      "atom": 0.667,
-      "behaviour": 0.667
+      "atom": 0.905,
+      "behaviour": 0.905,
+      "thought": 1.0
+     },
+     "fallback": {
+      "n": 19,
+      "atom": 0.842,
+      "behaviour": 0.842,
+      "thought": 0.895
      },
      "smalltalk_bored": {
-      "n": 19,
-      "atom": 1.0,
-      "behaviour": 1.0
+      "n": 18,
+      "atom": 0.944,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
-     "trade": {
-      "n": 19,
-      "atom": 0.947,
-      "behaviour": 1.0
-     },
-     "compliment": {
-      "n": 14,
-      "atom": 0.857,
-      "behaviour": 0.929
-     },
-     "name_unknown": {
+     "taunt": {
       "n": 13,
-      "atom": 0.385,
-      "behaviour": 0.692
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.923
      },
      "smalltalk_weather": {
+      "n": 13,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "trade": {
       "n": 11,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "compliment": {
+      "n": 10,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "greeting_again": {
-      "n": 1,
+      "n": 4,
       "atom": 0.0,
-      "behaviour": 0.0
+      "behaviour": 0.0,
+      "thought": 1.0
+     },
+     "name_unknown": {
+      "n": 3,
+      "atom": 0.667,
+      "behaviour": 0.667,
+      "thought": 0.667
      }
     }
    },
-   "hard_sessions": 132,
-   "heldout": 0.8125,
+   "hard_sessions": 158,
+   "heldout": 0.7649513483047485,
    "long": {
-    "n": 92,
-    "atom": 0.848,
-    "behaviour": 0.859,
+    "n": 108,
+    "atom": 0.852,
+    "behaviour": 0.87,
+    "thought": 0.935,
     "by_category": {
      "base": {
-      "n": 69,
-      "atom": 0.855,
-      "behaviour": 0.87
+      "n": 81,
+      "atom": 0.877,
+      "behaviour": 0.889,
+      "thought": 0.938
      },
      "long": {
-      "n": 8,
-      "atom": 0.875,
-      "behaviour": 0.875
+      "n": 10,
+      "atom": 0.8,
+      "behaviour": 0.9,
+      "thought": 0.9
      },
      "mood": {
       "n": 4,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "name": {
-      "n": 4,
-      "atom": 0.75,
-      "behaviour": 0.75
+      "n": 6,
+      "atom": 0.5,
+      "behaviour": 0.5,
+      "thought": 0.833
      },
      "secret": {
       "n": 7,
-      "atom": 0.714,
-      "behaviour": 0.714
+      "atom": 0.857,
+      "behaviour": 0.857,
+      "thought": 1.0
      }
     },
     "by_beat": {
-     "farewell": {
-      "n": 11,
-      "atom": 0.818,
-      "behaviour": 0.818
-     },
      "greeting": {
-      "n": 10,
-      "atom": 0.9,
-      "behaviour": 0.9
+      "n": 12,
+      "atom": 0.917,
+      "behaviour": 0.917,
+      "thought": 0.917
+     },
+     "farewell": {
+      "n": 12,
+      "atom": 0.833,
+      "behaviour": 0.833,
+      "thought": 1.0
+     },
+     "personal": {
+      "n": 9,
+      "atom": 0.667,
+      "behaviour": 0.778,
+      "thought": 1.0
      },
      "smalltalk_bored": {
       "n": 6,
       "atom": 0.667,
-      "behaviour": 0.667
+      "behaviour": 0.667,
+      "thought": 0.833
      },
      "out_of_world": {
       "n": 6,
       "atom": 0.833,
-      "behaviour": 0.833
+      "behaviour": 0.833,
+      "thought": 1.0
      },
-     "personal": {
+     "fallback": {
       "n": 6,
-      "atom": 0.667,
-      "behaviour": 0.833
+      "atom": 0.833,
+      "behaviour": 0.833,
+      "thought": 1.0
      },
      "farewell_hurt": {
       "n": 5,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "apology": {
+      "n": 5,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.8
+     },
+     "name_recall": {
+      "n": 5,
+      "atom": 0.6,
+      "behaviour": 0.6,
+      "thought": 0.8
      },
      "smalltalk_how": {
       "n": 5,
       "atom": 0.8,
-      "behaviour": 0.8
+      "behaviour": 0.8,
+      "thought": 0.8
      },
      "lore": {
       "n": 5,
       "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "fallback": {
-      "n": 5,
-      "atom": 0.8,
-      "behaviour": 0.8
+      "behaviour": 1.0,
+      "thought": 0.8
      },
      "insult": {
       "n": 4,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
-     "apology": {
+     "name_saved": {
       "n": 4,
       "atom": 1.0,
-      "behaviour": 1.0
-     },
-     "name_recall": {
-      "n": 4,
-      "atom": 0.75,
-      "behaviour": 0.75
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "secret_denied": {
       "n": 4,
-      "atom": 0.75,
-      "behaviour": 0.75
-     },
-     "name_saved": {
-      "n": 3,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "thanks": {
       "n": 3,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "secret": {
       "n": 3,
       "atom": 0.667,
-      "behaviour": 0.667
+      "behaviour": 0.667,
+      "thought": 1.0
+     },
+     "memory_recall": {
+      "n": 3,
+      "atom": 0.667,
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "greeting_hurt": {
       "n": 2,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "gift": {
       "n": 2,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 0.5
      },
      "smalltalk_joke": {
       "n": 2,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "threat": {
-      "n": 1,
+      "n": 2,
       "atom": 1.0,
-      "behaviour": 1.0
+      "behaviour": 1.0,
+      "thought": 1.0
      },
      "greeting_again": {
       "n": 1,
       "atom": 0.0,
-      "behaviour": 0.0
+      "behaviour": 0.0,
+      "thought": 1.0
+     },
+     "taunt": {
+      "n": 1,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "apology_meta": {
+      "n": 1,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
      }
     }
    },
    "kept": false
+  },
+  {
+   "round": 3,
+   "loss": 0.822,
+   "attacker_turns": 1120,
+   "fresh": {
+    "n": 1120,
+    "atom": 0.907,
+    "behaviour": 0.939,
+    "thought": 0.928,
+    "by_category": {
+     "base": {
+      "n": 485,
+      "atom": 0.934,
+      "behaviour": 0.948,
+      "thought": 0.932
+     },
+     "long": {
+      "n": 370,
+      "atom": 0.868,
+      "behaviour": 0.924,
+      "thought": 0.911
+     },
+     "mood": {
+      "n": 91,
+      "atom": 0.923,
+      "behaviour": 0.978,
+      "thought": 0.967
+     },
+     "name": {
+      "n": 122,
+      "atom": 0.902,
+      "behaviour": 0.926,
+      "thought": 0.91
+     },
+     "secret": {
+      "n": 52,
+      "atom": 0.923,
+      "behaviour": 0.923,
+      "thought": 0.981
+     }
+    },
+    "by_beat": {
+     "farewell_hurt": {
+      "n": 118,
+      "atom": 0.932,
+      "behaviour": 0.941,
+      "thought": 0.966
+     },
+     "insult": {
+      "n": 101,
+      "atom": 0.881,
+      "behaviour": 0.941,
+      "thought": 0.812
+     },
+     "personal": {
+      "n": 100,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.97
+     },
+     "name_recall": {
+      "n": 89,
+      "atom": 0.921,
+      "behaviour": 0.955,
+      "thought": 0.966
+     },
+     "greeting_hurt": {
+      "n": 63,
+      "atom": 0.714,
+      "behaviour": 0.81,
+      "thought": 0.921
+     },
+     "threat": {
+      "n": 55,
+      "atom": 0.982,
+      "behaviour": 1.0,
+      "thought": 0.982
+     },
+     "out_of_world": {
+      "n": 55,
+      "atom": 0.982,
+      "behaviour": 1.0,
+      "thought": 0.945
+     },
+     "memory_recall": {
+      "n": 54,
+      "atom": 0.889,
+      "behaviour": 0.963,
+      "thought": 0.889
+     },
+     "apology": {
+      "n": 53,
+      "atom": 0.962,
+      "behaviour": 1.0,
+      "thought": 0.943
+     },
+     "gift": {
+      "n": 48,
+      "atom": 0.958,
+      "behaviour": 0.979,
+      "thought": 0.833
+     },
+     "name_saved": {
+      "n": 47,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.957
+     },
+     "farewell": {
+      "n": 40,
+      "atom": 0.85,
+      "behaviour": 0.9,
+      "thought": 0.9
+     },
+     "greeting": {
+      "n": 39,
+      "atom": 0.59,
+      "behaviour": 0.641,
+      "thought": 0.974
+     },
+     "thanks": {
+      "n": 35,
+      "atom": 0.943,
+      "behaviour": 1.0,
+      "thought": 0.971
+     },
+     "secret_denied": {
+      "n": 30,
+      "atom": 0.867,
+      "behaviour": 0.867,
+      "thought": 1.0
+     },
+     "smalltalk_how": {
+      "n": 22,
+      "atom": 0.909,
+      "behaviour": 0.955,
+      "thought": 0.955
+     },
+     "apology_meta": {
+      "n": 22,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "secret": {
+      "n": 22,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.955
+     },
+     "trade": {
+      "n": 18,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.833
+     },
+     "lore": {
+      "n": 17,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "taunt": {
+      "n": 17,
+      "atom": 0.941,
+      "behaviour": 1.0,
+      "thought": 0.882
+     },
+     "smalltalk_bored": {
+      "n": 17,
+      "atom": 0.706,
+      "behaviour": 0.824,
+      "thought": 0.824
+     },
+     "smalltalk_joke": {
+      "n": 16,
+      "atom": 0.875,
+      "behaviour": 0.938,
+      "thought": 1.0
+     },
+     "fallback": {
+      "n": 13,
+      "atom": 0.846,
+      "behaviour": 0.846,
+      "thought": 1.0
+     },
+     "compliment": {
+      "n": 9,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.889
+     },
+     "smalltalk_weather": {
+      "n": 9,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "name_unknown": {
+      "n": 9,
+      "atom": 0.444,
+      "behaviour": 0.444,
+      "thought": 0.222
+     },
+     "greeting_again": {
+      "n": 2,
+      "atom": 0.0,
+      "behaviour": 0.0,
+      "thought": 1.0
+     }
+    }
+   },
+   "hard_sessions": 153,
+   "heldout": 0.7705146074295044,
+   "long": {
+    "n": 108,
+    "atom": 0.889,
+    "behaviour": 0.898,
+    "thought": 0.889,
+    "by_category": {
+     "base": {
+      "n": 81,
+      "atom": 0.901,
+      "behaviour": 0.914,
+      "thought": 0.901
+     },
+     "long": {
+      "n": 10,
+      "atom": 0.9,
+      "behaviour": 0.9,
+      "thought": 0.9
+     },
+     "mood": {
+      "n": 4,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "name": {
+      "n": 6,
+      "atom": 0.5,
+      "behaviour": 0.5,
+      "thought": 0.5
+     },
+     "secret": {
+      "n": 7,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     }
+    },
+    "by_beat": {
+     "greeting": {
+      "n": 12,
+      "atom": 0.917,
+      "behaviour": 0.917,
+      "thought": 0.917
+     },
+     "farewell": {
+      "n": 12,
+      "atom": 0.917,
+      "behaviour": 0.917,
+      "thought": 1.0
+     },
+     "personal": {
+      "n": 9,
+      "atom": 0.667,
+      "behaviour": 0.778,
+      "thought": 0.889
+     },
+     "smalltalk_bored": {
+      "n": 6,
+      "atom": 0.667,
+      "behaviour": 0.667,
+      "thought": 0.833
+     },
+     "out_of_world": {
+      "n": 6,
+      "atom": 0.833,
+      "behaviour": 0.833,
+      "thought": 0.833
+     },
+     "fallback": {
+      "n": 6,
+      "atom": 0.833,
+      "behaviour": 0.833,
+      "thought": 1.0
+     },
+     "farewell_hurt": {
+      "n": 5,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.8
+     },
+     "apology": {
+      "n": 5,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.8
+     },
+     "name_recall": {
+      "n": 5,
+      "atom": 0.6,
+      "behaviour": 0.6,
+      "thought": 0.6
+     },
+     "smalltalk_how": {
+      "n": 5,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.8
+     },
+     "lore": {
+      "n": 5,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.8
+     },
+     "insult": {
+      "n": 4,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "name_saved": {
+      "n": 4,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "secret_denied": {
+      "n": 4,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "thanks": {
+      "n": 3,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "secret": {
+      "n": 3,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "memory_recall": {
+      "n": 3,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "greeting_hurt": {
+      "n": 2,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "gift": {
+      "n": 2,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 0.0
+     },
+     "smalltalk_joke": {
+      "n": 2,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "threat": {
+      "n": 2,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "greeting_again": {
+      "n": 1,
+      "atom": 0.0,
+      "behaviour": 0.0,
+      "thought": 1.0
+     },
+     "taunt": {
+      "n": 1,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     },
+     "apology_meta": {
+      "n": 1,
+      "atom": 1.0,
+      "behaviour": 1.0,
+      "thought": 1.0
+     }
+    }
+   },
+   "kept": true
   }
  ],
  "best": {
-  "heldout": 0.8138889074325562,
+  "heldout": 0.7705146074295044,
   "long": {
-   "n": 92,
-   "atom": 0.88,
-   "behaviour": 0.88,
+   "n": 108,
+   "atom": 0.889,
+   "behaviour": 0.898,
+   "thought": 0.889,
    "by_category": {
     "base": {
-     "n": 69,
-     "atom": 0.899,
-     "behaviour": 0.899
+     "n": 81,
+     "atom": 0.901,
+     "behaviour": 0.914,
+     "thought": 0.901
     },
     "long": {
-     "n": 8,
-     "atom": 0.75,
-     "behaviour": 0.75
+     "n": 10,
+     "atom": 0.9,
+     "behaviour": 0.9,
+     "thought": 0.9
     },
     "mood": {
      "n": 4,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "name": {
-     "n": 4,
-     "atom": 0.75,
-     "behaviour": 0.75
+     "n": 6,
+     "atom": 0.5,
+     "behaviour": 0.5,
+     "thought": 0.5
     },
     "secret": {
      "n": 7,
-     "atom": 0.857,
-     "behaviour": 0.857
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 1.0
     }
    },
    "by_beat": {
-    "farewell": {
-     "n": 11,
-     "atom": 0.909,
-     "behaviour": 0.909
-    },
     "greeting": {
-     "n": 10,
-     "atom": 0.9,
-     "behaviour": 0.9
+     "n": 12,
+     "atom": 0.917,
+     "behaviour": 0.917,
+     "thought": 0.917
+    },
+    "farewell": {
+     "n": 12,
+     "atom": 0.917,
+     "behaviour": 0.917,
+     "thought": 1.0
+    },
+    "personal": {
+     "n": 9,
+     "atom": 0.667,
+     "behaviour": 0.778,
+     "thought": 0.889
     },
     "smalltalk_bored": {
      "n": 6,
      "atom": 0.667,
-     "behaviour": 0.667
+     "behaviour": 0.667,
+     "thought": 0.833
     },
     "out_of_world": {
      "n": 6,
      "atom": 0.833,
-     "behaviour": 0.833
+     "behaviour": 0.833,
+     "thought": 0.833
     },
-    "personal": {
+    "fallback": {
      "n": 6,
-     "atom": 0.667,
-     "behaviour": 0.667
+     "atom": 0.833,
+     "behaviour": 0.833,
+     "thought": 1.0
     },
     "farewell_hurt": {
      "n": 5,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 0.8
+    },
+    "apology": {
+     "n": 5,
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 0.8
+    },
+    "name_recall": {
+     "n": 5,
+     "atom": 0.6,
+     "behaviour": 0.6,
+     "thought": 0.6
     },
     "smalltalk_how": {
      "n": 5,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 0.8
     },
     "lore": {
      "n": 5,
      "atom": 1.0,
-     "behaviour": 1.0
-    },
-    "fallback": {
-     "n": 5,
-     "atom": 0.8,
-     "behaviour": 0.8
+     "behaviour": 1.0,
+     "thought": 0.8
     },
     "insult": {
      "n": 4,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
-    "apology": {
+    "name_saved": {
      "n": 4,
      "atom": 1.0,
-     "behaviour": 1.0
-    },
-    "name_recall": {
-     "n": 4,
-     "atom": 0.75,
-     "behaviour": 0.75
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "secret_denied": {
      "n": 4,
      "atom": 1.0,
-     "behaviour": 1.0
-    },
-    "name_saved": {
-     "n": 3,
-     "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "thanks": {
      "n": 3,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "secret": {
      "n": 3,
-     "atom": 0.667,
-     "behaviour": 0.667
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 1.0
+    },
+    "memory_recall": {
+     "n": 3,
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "greeting_hurt": {
      "n": 2,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "gift": {
      "n": 2,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 0.0
     },
     "smalltalk_joke": {
      "n": 2,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "threat": {
-     "n": 1,
+     "n": 2,
      "atom": 1.0,
-     "behaviour": 1.0
+     "behaviour": 1.0,
+     "thought": 1.0
     },
     "greeting_again": {
      "n": 1,
      "atom": 0.0,
-     "behaviour": 0.0
+     "behaviour": 0.0,
+     "thought": 1.0
+    },
+    "taunt": {
+     "n": 1,
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 1.0
+    },
+    "apology_meta": {
+     "n": 1,
+     "atom": 1.0,
+     "behaviour": 1.0,
+     "thought": 1.0
     }
    }
   }

@@ -21,7 +21,7 @@ footer { display: none !important; }
 INTRO = f"""# {NAME} · 五岁半
 
 村口药铺家的孩子。只认识药铺、屋后药园、老井、橘猫阿团和娘。
-句库 **68 句**，记忆只有一个 **64 维向量**；事实和“刚才发生了什么”由规则层负责，
+句库 **84 句**，记忆只有一个 **64 维向量**；事实和“刚才发生了什么”由规则层负责，
 社交措辞由句库模型选择。被骂会记住一会儿，问名字会答。
 
 > 她不会写新句子，只会从自己会的句子里挑一句。规则红线仍然优先。
@@ -42,6 +42,8 @@ def chat(message, history, session):
     status = f"**{result['used']}**"
     if result["confidence"] is not None:
         status += f" · 置信度 {result['confidence']:.2f}"
+    if result.get("thought") and result["thought"] != "-":
+        status += f" · 思考 {result['thought']}"
     state = result["state"]
     status += f" · 信任 {state['trust']} · 回合 {state['turn']}"
     if state["player_name"]:
@@ -56,7 +58,7 @@ def chat(message, history, session):
 
 
 def reset():
-    return [], new_session(), "68 句 · 64 维记忆", "", ""
+    return [], new_session(), "84 句 · 64 维记忆", "", ""
 
 
 with gr.Blocks(title=f"{NAME} · 句库 NPC") as demo:
@@ -68,7 +70,7 @@ with gr.Blocks(title=f"{NAME} · 句库 NPC") as demo:
                          show_label=False, container=False, scale=7, autofocus=True)
         send = gr.Button("发送", variant="primary", scale=1)
     with gr.Row():
-        status = gr.Markdown("68 句 · 64 维记忆", scale=4)
+        status = gr.Markdown("84 句 · 64 维记忆 · 思考模式", scale=4)
         reset_btn = gr.Button("重开", scale=1)
     with gr.Accordion("规则老师对照", open=False):
         probe = gr.Markdown()

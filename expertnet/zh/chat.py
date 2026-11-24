@@ -13,9 +13,10 @@ import threading
 import torch
 import torch.nn.functional as F
 
-from ..atoms import AtomNet
+from ..atoms import make_model
 from ..sentence import HFSentenceEncoder
 from .persona import FACTS, format_line, new_state, teacher_turn, zh_state_vector
+from .thought import THOUGHTS
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAFE = os.path.join(HERE, "atoms_zh.safetensors")
@@ -23,12 +24,11 @@ META = os.path.join(HERE, "atoms_zh.json")
 PT = os.path.join(HERE, "atoms_zh.pt")
 ENC_MODEL = "BAAI/bge-small-zh-v1.5"
 SECRET_ATOMS = {fact["text"] for fact in FACTS.values() if fact.get("tier", 0) >= 1}
-# Facts, permissions and episodic memory must come from the rule teacher; the
-# learned selector is kept for social wording where several lines are valid.
+# Facts, permissions and names stay on the rule teacher; the learned selector is
+# kept for social wording, taunt/apology_meta and episodic memory.
 RULE_ONLY = {"boundary", "threat", "meta", "trade", "gift", "promise", "personal",
              "lore", "secret", "secret_denied", "name_saved", "name_recall",
-             "name_unknown", "memory_recall", "taunt", "apology_meta",
-             "out_of_world", "fallback"}
+             "name_unknown", "out_of_world", "fallback"}
 
 _LOCK = threading.Lock()
 _MODEL = {"tried": False, "ready": False, "error": "",
@@ -41,13 +41,13 @@ def _load_checkpoint():
             with open(META, encoding="utf-8") as fh:
                 meta = json.load(fh)
             from safetensors.torch import load_file
-            model = AtomNet(**meta["config"])
+            model = make_model(meta["config"])
             model.load_state_dict(load_file(SAFE))
             return model.eval(), meta["atoms"], meta["beats"]
         except Exception:
             pass
     ckpt = torch.load(PT, map_location="cpu")
-    model = AtomNet(**ckpt["config"])
+    model = make_model(ckpt["config"])
     model.load_state_dict(ckpt["state"])
     return model.eval(), ckpt["atoms"], ckpt["beats"]
 
@@ -136,8 +136,10 @@ def reply(session: dict | None, text: str) -> tuple[dict, dict]:
                 logits, _, new_h = _MODEL["model"](vec, st, hidden)
             logits = logits[0, 0]
             secret_locked = state["trust"] < 40 and "secret" not in state.get("revealed", [])
+            no_previous = not state.get("last_player")
             blocked = torch.tensor([
                 ("{player_name}" in atom and not state.get("player_name"))
+                or ("{last_player}" in atom and no_previous)
                 or (secret_locked and atom in SECRET_ATOMS)
                 for atom in _MODEL["atoms"]
             ])
@@ -146,8 +148,15 @@ def reply(session: dict | None, text: str) -> tuple[dict, dict]:
             probs = F.softmax(logits, dim=-1)
             line = _MODEL["atoms"][int(probs.argmax())]
             if "{player_name}" in line:
-                line = line.format(player_name=state.get("player_name") or "你")
-            result.update(atom=line, used="句库", confidence=round(float(probs.max()), 3))
+                line = line.replace("{player_name}", state.get("player_name") or "你")
+            if "{last_player}" in line:
+                line = line.replace("{last_player}",
+                                    state.get("last_player") or "你刚才的话")
+            thought = "-"
+            if getattr(_MODEL["model"], "last_thoughts", None) is not None:
+                thought = THOUGHTS[int(_MODEL["model"].last_thoughts[0, 0].argmax())]
+            result.update(atom=line, used="句库", confidence=round(float(probs.max()), 3),
+                          thought=thought)
             if beat in RULE_ONLY:
                 result.update(reply=rule, used="规则")
             else:

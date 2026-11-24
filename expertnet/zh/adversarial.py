@@ -26,6 +26,7 @@ from .chat import META, PT, SAFE, components
 from .corpus import HELDOUT, SEEDS
 from .long_suite import SUITE
 from .persona import zh_state_vector
+from .thought import THOUGHTS, thought_of
 from .train import play
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -48,6 +49,7 @@ def build_indices(atoms: list[str], beats: list[str], base_rows):
 def fine_tune(model, sessions, hf, atoms, beats, epochs: int, lr: float) -> float:
     atom_index = {atom: i for i, atom in enumerate(atoms)}
     beat_index = {beat: i for i, beat in enumerate(beats)}
+    thought_index = {name: i for i, name in enumerate(THOUGHTS)}
     groups = defaultdict(list)
     for session in sessions:
         groups[len(session)].append(session)
@@ -58,13 +60,16 @@ def fine_tune(model, sessions, hf, atoms, beats, epochs: int, lr: float) -> floa
                            for session in group])
         bi = torch.tensor([[beat_index.get(row[3], -1) for row in session]
                            for session in group])
-        prepared.append((data, yi, bi))
+        ti = torch.tensor([[
+            thought_index[thought_of(row[1]["last_beat"], row[1]["player_name"], row[3])]
+            for row in session] for session in group])
+        prepared.append((data, yi, bi, ti))
 
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     model.train()
     last = 0.0
     for _ in range(epochs):
-        for data, yi, bi in prepared:
+        for data, yi, bi, ti in prepared:
             order = torch.randperm(len(yi))
             for start in range(0, len(order), 64):
                 idx = order[start:start + 64]
@@ -80,6 +85,10 @@ def fine_tune(model, sessions, hf, atoms, beats, epochs: int, lr: float) -> floa
                     loss = loss + F.cross_entropy(flat_i[mask_i], target_i[mask_i])
                 if bool(mask_b.any()):
                     loss = loss + 0.3 * F.cross_entropy(flat_b[mask_b], target_b[mask_b])
+                if getattr(model, "last_thoughts", None) is not None:
+                    loss = loss + 0.2 * F.cross_entropy(
+                        model.last_thoughts.reshape(-1, len(THOUGHTS)),
+                        ti[idx].reshape(-1))
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
@@ -189,9 +198,11 @@ def main() -> int:
                        "kept": kept})
         print(f"round {round_no}: fresh_atom={fresh_summary['atom']:.3f} "
               f"fresh_behaviour={fresh_summary['behaviour']:.3f} "
+              f"fresh_thought={fresh_summary['thought']:.3f} "
               f"hard={len(hard_sessions)} -> heldout={held['atom']:.3f} "
               f"long_atom={summary['atom']:.3f} "
               f"long_behaviour={summary['behaviour']:.3f} "
+              f"long_thought={summary['thought']:.3f} "
               f"{'KEPT' if kept else 'dropped'}")
 
     saved = best_score > baseline_score + 0.002 and not args.dry_run

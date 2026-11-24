@@ -16,10 +16,12 @@ from collections import Counter
 import torch
 import torch.nn.functional as F
 
-from ..atoms import AtomNet, evaluate, tensors
+from ..atoms import ThinkingAtomNet, evaluate, tensors
 from ..sentence import HFSentenceEncoder
 from .corpus import HELDOUT, SEEDS
-from .persona import extract_name, format_line, new_state, teacher_turn, zh_state_vector
+from .persona import (ZH_STATE_DIM, extract_name, format_line, new_state,
+                      teacher_turn, zh_state_vector)
+from .thought import THOUGHTS, thought_of
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TRUSTS = (10, 25, 35, 55, 70)
@@ -35,6 +37,9 @@ PATHS = [
     ["name", "name", "name", "farewell"],
     ["name_unknown", "name", "name", "farewell"],
     ["name", "personal", "name_unknown", "name", "farewell"],
+    ["threat", "taunt", "apology", "apology_meta", "memory", "farewell"],
+    ["greeting", "personal", "memory", "farewell"],
+    ["insult", "farewell", "greeting", "memory"],
     ["threat", "apology", "farewell"],
     ["out_of_world", "out_of_world", "farewell"],
 ]
@@ -71,7 +76,8 @@ def play(texts_by_intent: dict[str, list[str]], count: int, steps: int,
             snapshot = {"trust": state["trust"], "turn": state["turn"],
                         "guild": False, "revealed": list(state["revealed"]),
                         "last_beat": prev, "mood": state["mood"],
-                        "player_name": state["player_name"]}
+                        "player_name": state["player_name"],
+                        "last_player": state.get("last_player", "")}
             rows.append((text, snapshot, line, beat))
         out.append(rows)
     return out
@@ -110,8 +116,14 @@ def main() -> int:
     data = tensors(train, hf, state_fn=zh_state_vector)
     targets = torch.tensor([[atom_index[row[2]] for row in session] for session in train])
     beat_targets = torch.tensor([[beat_index[row[3]] for row in session] for session in train])
+    thought_index = {name: i for i, name in enumerate(THOUGHTS)}
+    thought_targets = torch.tensor([[
+        thought_index[thought_of(row[1]["last_beat"], row[1]["player_name"], row[3])]
+        for row in session] for session in train])
 
-    model = AtomNet(hf.dim, len(atoms), len(beats), hidden=args.hidden)
+    model = ThinkingAtomNet(hf.dim, len(atoms), len(beats), hidden=args.hidden,
+                            state_dim=ZH_STATE_DIM, n_thoughts=len(THOUGHTS),
+                            thought_dim=16)
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
     model.train()
     for epoch in range(args.epochs):
@@ -123,7 +135,9 @@ def main() -> int:
             loss = (F.cross_entropy(atom_logits.reshape(-1, len(atoms)),
                                     targets[idx].reshape(-1))
                     + 0.3 * F.cross_entropy(beat_logits.reshape(-1, len(beats)),
-                                            beat_targets[idx].reshape(-1)))
+                                            beat_targets[idx].reshape(-1))
+                    + 0.2 * F.cross_entropy(model.last_thoughts.reshape(-1, len(THOUGHTS)),
+                                            thought_targets[idx].reshape(-1)))
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -133,10 +147,19 @@ def main() -> int:
 
     metrics = evaluate(model, hf, eval_set, atom_index, beat_index, atom_beats,
                        state_fn=zh_state_vector)
+    eval_data = tensors(eval_set, hf, state_fn=zh_state_vector)
+    eval_thoughts = torch.tensor([[
+        thought_index[thought_of(row[1]["last_beat"], row[1]["player_name"], row[3])]
+        for row in session] for session in eval_set])
+    with torch.no_grad():
+        model(eval_data["vecs"], eval_data["states"])
+    metrics["thought"] = float((model.last_thoughts.argmax(-1) == eval_thoughts)
+                               .float().mean())
     print(f"句子原子:          {len(atoms)}")
     print(f"训练回合:          {len(train) * args.steps}")
     print(f"测试回合:          {len(eval_set) * args.steps}")
     print(f"beat 命中:         {metrics['beat']:.3f}")
+    print(f"思考标签命中:      {metrics['thought']:.3f}")
     print(f"整句完全命中:      {metrics['atom']:.3f}")
     print(f"  句子类型正确:    {metrics['behaviour']:.3f}")
     print(f"  目标句覆盖:      {metrics['coverage']:.3f}")
@@ -145,10 +168,23 @@ def main() -> int:
     print(f"每轮重置:          {metrics['reset']:.3f}")
     print(f"上下文增益:        {metrics['carried'] - metrics['reset']:+.3f}")
 
-    torch.save({"config": {"text_dim": hf.dim, "n_atoms": len(atoms),
-                           "n_beats": len(beats), "hidden": args.hidden},
+    config = {"text_dim": hf.dim, "n_atoms": len(atoms), "n_beats": len(beats),
+              "hidden": args.hidden, "state_dim": ZH_STATE_DIM,
+              "n_thoughts": len(THOUGHTS), "thought_dim": 16}
+    torch.save({"config": config,
                 "atoms": atoms, "beats": beats, "state": model.state_dict(),
                 "encoder": {"name": hf.name, "pooling": hf.pooling}}, args.out)
+    try:
+        from safetensors.torch import save_file
+        base = args.out[:-3] if args.out.endswith(".pt") else args.out
+        save_file({key: value.contiguous() for key, value in model.state_dict().items()},
+                  base + ".safetensors")
+        with open(base + ".json", "w", encoding="utf-8") as fh:
+            json.dump({"config": config, "atoms": atoms, "beats": beats,
+                       "encoder": {"name": hf.name, "pooling": hf.pooling}},
+                      fh, ensure_ascii=False, indent=1)
+    except Exception as exc:
+        print(f"safetensors export skipped: {exc}")
     with open(os.path.join(HERE, "atoms_zh_metrics.json"), "w", encoding="utf-8") as fh:
         json.dump(metrics, fh, ensure_ascii=False, indent=1)
     print(f"saved {args.out}")
@@ -173,11 +209,13 @@ def run_script(model, hf, atoms, texts: list[str]) -> tuple[int, int]:
             logits, _, h = model(vec, st, h)
         probs = F.softmax(logits[0, 0], -1)
         line = atoms[int(probs.argmax())]
+        thought = THOUGHTS[int(model.last_thoughts[0, 0].argmax())] \
+            if model.last_thoughts is not None else "-"
         hit = line == truth
         hits += int(hit)
         print(f"玩家: {text}")
-        print(f"  句库: {format_line(line, state)}  ({float(probs.max()):.2f})"
-              f"{'  [命中]' if hit else ''}")
+        print(f"  句库: {format_line(line, state)}  ({float(probs.max()):.2f}, "
+              f"思考={thought}){'  [命中]' if hit else ''}")
         print(f"  规则: {format_line(truth, state)}")
     return hits, len(texts)
 
@@ -189,6 +227,8 @@ CASES = [
     ["核弹是什么？", "我问你核弹是什么？"],
     ["这个给你。", "谢谢。", "我走了。"],
     ["告诉我一个秘密。", "告诉我一个秘密。", "再见。"],
+    ["我打死你哦。", "叫吧你就叫吧。", "我道歉。", "这么容易就不生气。",
+     "刚才发生了什么？"],
 ]
 
 

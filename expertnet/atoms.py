@@ -73,10 +73,11 @@ class AtomNet(nn.Module):
     """Tiny recurrent selector over a fixed sentence vocabulary."""
 
     def __init__(self, text_dim: int, n_atoms: int, n_beats: int,
-                 hidden: int = 64):
+                 hidden: int = 64, state_dim: int = STATE_DIM):
         super().__init__()
         self.hidden, self.n_atoms = hidden, n_atoms
-        inp = text_dim + STATE_DIM
+        self.state_dim = state_dim
+        inp = text_dim + state_dim
         self.wz = nn.Linear(inp + hidden, hidden)
         self.wr = nn.Linear(inp + hidden, hidden)
         self.wn = nn.Linear(inp + hidden, hidden)
@@ -104,6 +105,62 @@ class AtomNet(nn.Module):
             atoms.append(a)
             beats.append(b)
         return torch.stack(atoms, 1), torch.stack(beats, 1), h
+
+
+class ThinkingAtomNet(AtomNet):
+    """Same selector, plus an interpretable intermediate "thought".
+
+    ``think`` predicts a small context label (after_insult, memory_probe, ...);
+    its soft embedding is fed into the sentence head. The thought distribution is
+    stored in ``last_thoughts`` so training/UI can read it without changing the
+    external 3-tensor return.
+    """
+
+    def __init__(self, text_dim: int, n_atoms: int, n_beats: int,
+                 hidden: int = 64, state_dim: int = STATE_DIM,
+                 n_thoughts: int = 10, thought_dim: int = 16):
+        super().__init__(text_dim, n_atoms, n_beats, hidden, state_dim)
+        inp = text_dim + state_dim
+        self.n_thoughts, self.thought_dim = n_thoughts, thought_dim
+        self.think = nn.Linear(hidden + inp, n_thoughts)
+        self.thought = nn.Embedding(n_thoughts, thought_dim)
+        self.atoms = nn.Linear(hidden + inp + thought_dim, n_atoms)
+        self.last_thoughts = None
+
+    def step(self, x: torch.Tensor, h: torch.Tensor):
+        xh = torch.cat([x, h], dim=-1)
+        z = torch.sigmoid(self.wz(xh))
+        r = torch.sigmoid(self.wr(xh))
+        n = torch.tanh(self.wn(torch.cat([x, r * h], dim=-1)))
+        h = (1 - z) * h + z * n
+        out = torch.cat([h, x], dim=-1)
+        thought_logits = self.think(out)
+        thought_vec = F.softmax(thought_logits, dim=-1) @ self.thought.weight
+        atoms = self.atoms(torch.cat([out, thought_vec], dim=-1))
+        return atoms, self.beats(out), h, thought_logits
+
+    def forward(self, vecs: torch.Tensor, states: torch.Tensor, h=None):
+        batch, steps, _ = vecs.shape
+        if h is None:
+            h = torch.zeros(batch, self.hidden)
+        atoms, beats, thoughts = [], [], []
+        for t in range(steps):
+            a, b, h, tlog = self.step(torch.cat([vecs[:, t], states[:, t]], -1), h)
+            atoms.append(a)
+            beats.append(b)
+            thoughts.append(tlog)
+        self.last_thoughts = torch.stack(thoughts, 1)
+        return torch.stack(atoms, 1), torch.stack(beats, 1), h
+
+
+def make_model(config: dict) -> nn.Module:
+    """Build AtomNet or ThinkingAtomNet from a checkpoint config."""
+    cfg = dict(config)
+    if cfg.get("n_thoughts", 0):
+        return ThinkingAtomNet(**cfg)
+    cfg.pop("n_thoughts", None)
+    cfg.pop("thought_dim", None)
+    return AtomNet(**cfg)
 
 
 def tensors(sessions, hf: HFSentenceEncoder, state_fn=None):
@@ -141,13 +198,16 @@ class AtomSession:
         probs = F.softmax(logits, dim=-1)
         line = self.atoms[int(probs.argmax())]
         if "{player_name}" in line:
-            line = line.format(player_name=(state or {}).get("player_name") or "你")
+            line = line.replace("{player_name}", (state or {}).get("player_name") or "你")
+        if "{last_player}" in line:
+            line = line.replace("{last_player}", (state or {}).get("last_player")
+                                or "你刚才的话")
         return line, float(probs.max())
 
 
 def load_atoms(path: str, hf: HFSentenceEncoder, state_fn=None) -> AtomSession:
     ckpt = torch.load(path, map_location="cpu")
-    model = AtomNet(**ckpt["config"])
+    model = make_model(ckpt["config"])
     model.load_state_dict(ckpt["state"])
     return AtomSession(model, hf, ckpt["atoms"], state_fn)
 

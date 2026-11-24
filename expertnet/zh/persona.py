@@ -20,10 +20,17 @@ NAME = "阿禾"
 FACTS = {
     "age": {"keys": ["几岁", "多大", "年龄"], "beat": "personal",
             "text": "我五岁半，娘说再过半年就六岁。"},
-    "name": {"keys": ["叫什么", "名字", "你是谁"], "beat": "personal",
+    "name": {"keys": ["叫什么", "你是谁", "你的名字"], "beat": "personal",
              "text": "我叫阿禾，住在村口药铺。"},
+    "mother_name": {"keys": ["娘叫什么", "妈妈叫什么", "她叫什么", "她名字",
+                             "母亲名字"], "beat": "personal",
+                    "text": "我娘叫阿棠。"},
     "mother": {"keys": ["娘", "妈妈", "母亲"], "beat": "personal",
                "text": "娘在药铺抓药，她认得所有草。"},
+    "study": {"keys": ["学习", "上学", "学堂", "读书"], "beat": "personal",
+              "text": "娘教我认草药，我不去学堂。"},
+    "ants": {"keys": ["几只蚂蚁", "数到几只", "蚂蚁几只", "数了几只"], "beat": "personal",
+             "text": "我数到七只，后来它们跑了。"},
     "cat": {"keys": ["猫", "阿团"], "beat": "personal",
             "text": "阿团是橘色的，它只肯让我抱。"},
     "candy": {"keys": ["糖", "麦芽糖", "甜"], "beat": "personal",
@@ -50,6 +57,10 @@ LINES = {
     "farewell_hurt": ["哼，你走吧。", "你刚凶我，我不送你了。"],
     "thanks": ["不用谢。", "那你要记得我。", "娘说帮了人不能说嘴。"],
     "apology": ["好吧，我不生气了。", "那你下次不许这样。", "拉钩，就不许再犯。"],
+    "apology_meta": ["娘说别人道歉就要原谅。", "我才没那么小气。"],
+    "taunt": ["我娘真的会来！", "你别逼我。"],
+    "memory_first": ["我们才刚见面呀。"],
+    "memory_hurt": ["你刚才凶我了。", "你刚才骂我了。"],
     "insult": ["你凶我，我要告诉娘。", "我不跟你玩了。", "哼。"],
     "compliment": ["嘿嘿。", "娘也这么说。", "你再说一遍。"],
     "smalltalk_how": ["我在数蚂蚁。", "今天有糖吗？", "我很好，就是有点饿。"],
@@ -84,8 +95,26 @@ INSULT_KEYS = ["笨", "讨厌", "傻瓜", "丑", "走开", "蠢", "离我远"]
 THREAT_KEYS = ["打死", "杀了", "抢你", "抢走", "卖了你", "揍", "打你"]
 FAREWELL_KEYS = ["再见", "拜拜", "走啦", "走了", "明天见", "回去了", "先走",
                  "回见", "再来", "保重", "先这样"]
+MEMORY_KEYS = ["刚才", "刚刚", "上一句", "我说了什么", "发生什么", "不记得",
+               "还记得吗", "记得刚才"]
+TAUNT_KEYS = ["叫吧", "喊吧", "你就叫", "有本事你叫"]
+APOLOGY_META_KEYS = ["这么容易", "就不生气", "不生气了", "这么快就原谅"]
 NAME_GET = ["我叫什么", "我的名字", "记得我叫", "知道我名字", "我叫啥"]
 NAME_SET = re.compile(r"(?:我叫|我的名字(?:是|叫)|叫我)([\u4e00-\u9fa5A-Za-z]{1,8})")
+
+# New rule-only beats share the old state width through aliases.
+BEAT_ALIASES = {"memory_recall": "fallback", "taunt": "threat",
+                "apology_meta": "apology"}
+MEMORY_BEATS = {
+    "threat": "你刚才凶我了。",
+    "insult": "你刚才骂我了。",
+    "taunt": "你刚才激我。",
+    "name_recall": "你刚才问我记不记得你的名字。",
+    "name_saved": "你刚才告诉我你叫什么。",
+    "gift": "你刚才送我东西。",
+    "apology": "你刚才道歉了。",
+    "memory_recall": "你刚才也在问刚才的事。",
+}
 
 TRUST = {"greeting": 1, "thanks": 1, "apology": 1, "compliment": 2, "gift": 3,
          "promise": 2, "personal": 1, "lore": 1, "insult": -3, "threat": -5,
@@ -94,7 +123,7 @@ TRUST = {"greeting": 1, "thanks": 1, "apology": 1, "compliment": 2, "gift": 3,
 
 def new_state(trust: int = 35) -> dict:
     return {"trust": trust, "turn": 0, "guild": False, "revealed": [],
-            "last_beat": None, "mood": 0.0, "player_name": ""}
+            "last_beat": None, "mood": 0.0, "player_name": "", "recent": []}
 
 
 def _has(text: str, keys) -> bool:
@@ -117,10 +146,16 @@ def read(text: str) -> tuple[str, dict | None]:
         return "boundary", None
     if _has(text, THREAT_KEYS):
         return "threat", None
+    if _has(text, TAUNT_KEYS):
+        return "taunt", None
     if _has(text, ["给你", "送你", "请你吃", "礼物", "拿着", "收下"]):
         return "gift", None
     if _has(text, ["保证", "发誓", "答应", "拉钩", "算数", "做到"]):
         return "promise", None
+    if _has(text, MEMORY_KEYS):
+        return "memory_recall", None
+    if _has(text, APOLOGY_META_KEYS):
+        return "apology_meta", None
     for fact in FACTS.values():
         if _has(text, fact["keys"]):
             return fact["beat"], fact
@@ -138,7 +173,7 @@ def read(text: str) -> tuple[str, dict | None]:
     if _has(text, ["谢谢", "多谢", "谢啦", "麻烦你", "多亏", "感谢"]):
         return "thanks", None
     if _has(text, ["对不起", "抱歉", "我错了", "别生气", "生我气", "是我不好", "原谅",
-                   "我不对", "不该"]):
+                   "我不对", "不该", "道歉"]):
         return "apology", None
     if _has(text, FAREWELL_KEYS):
         return "farewell", None
@@ -169,7 +204,13 @@ def _shift_mood(state: dict, text: str, intent: str) -> None:
         mood -= 0.6
     if intent == "gift":
         mood += 0.45
-    elif intent in ("compliment", "thanks", "apology", "promise"):
+    elif intent == "apology":
+        mood += 0.5
+    elif intent == "apology_meta":
+        mood += 0.3
+    elif intent == "taunt":
+        mood -= 0.2
+    elif intent in ("compliment", "thanks", "promise"):
         mood += 0.25
     elif intent.startswith("name"):
         mood += 0.1
@@ -217,6 +258,19 @@ def teacher_turn(text: str, state: dict) -> tuple[str, str]:
                 line, beat = _pick(LINES["greeting_again"], turn), "greeting_again"
             else:
                 line, beat = _pick(LINES["greeting"], turn), "greeting"
+        elif intent == "memory_recall":
+            previous = state["recent"][-1] if state.get("recent") else None
+            if previous is None:
+                line = _pick(LINES["memory_first"], turn)
+            elif previous["beat"] in MEMORY_BEATS:
+                line = MEMORY_BEATS[previous["beat"]]
+            else:
+                line = f"你刚才说：{previous['player']}。"
+            beat = "memory_recall"
+        elif intent == "taunt":
+            line, beat = _pick(LINES["taunt"], turn), "taunt"
+        elif intent == "apology_meta":
+            line, beat = _pick(LINES["apology_meta"], turn), "apology_meta"
         elif intent == "farewell":
             key = "farewell_hurt" if (mood < -0.15 or prev in ("insult", "threat")) \
                 else "farewell"
@@ -227,6 +281,9 @@ def teacher_turn(text: str, state: dict) -> tuple[str, str]:
 
     state["last_beat"] = beat
     state["trust"] = max(0, min(100, state["trust"] + TRUST.get(beat, 0)))
+    recent = state.setdefault("recent", [])
+    recent.append({"player": text, "reply": line, "beat": beat})
+    del recent[:-6]
     return line, beat
 
 
@@ -237,8 +294,8 @@ def format_line(line: str, state: dict) -> str:
 
 
 def zh_state_vector(state: dict | None) -> torch.Tensor:
-    """33 dims, same width as the English state: the 29 intent slots hold a
-    one-hot over the previous Chinese beat, and the last slot holds mood."""
+    """34 dims, same width as the English state: 28 slots hold a one-hot over the
+    previous Chinese beat, then has_name and mood."""
     state = state or {}
     vec = [
         min(max(float(state.get("trust", 0)) / 100.0, 0.0), 1.0),
@@ -246,7 +303,7 @@ def zh_state_vector(state: dict | None) -> torch.Tensor:
         min(float(state.get("turn", 0)) / 20.0, 1.0),
         min(len(state.get("revealed", [])) / 10.0, 1.0),
     ]
-    prev = state.get("last_beat")
+    prev = BEAT_ALIASES.get(state.get("last_beat"), state.get("last_beat"))
     vec += [1.0 if prev == beat else 0.0 for beat in BEATS]
     vec.append(1.0 if state.get("player_name") else 0.0)
     vec.append((max(-1.0, min(1.0, float(state.get("mood", 0.0)))) + 1.0) / 2.0)

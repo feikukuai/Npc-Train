@@ -21,7 +21,8 @@ footer { display: none !important; }
 INTRO = f"""# {NAME} · 五岁半
 
 村口药铺家的孩子。只认识药铺、屋后药园、老井、橘猫阿团和娘。
-句库 **68 句**，记忆只有一个 **64 维向量**；被骂会记住一会儿，问名字会答。
+句库 **68 句**，记忆只有一个 **64 维向量**；事实和“刚才发生了什么”由规则层负责，
+社交措辞由句库模型选择。被骂会记住一会儿，问名字会答。
 
 > 她不会写新句子，只会从自己会的句子里挑一句。规则红线仍然优先。
 """
@@ -34,7 +35,7 @@ def chat(message, history, session):
         return history, session, "说点什么吧。", "", ""
 
     session, result = reply(session, text)
-    answer = result["atom"] or result["rule"]
+    answer = result.get("reply") or result["atom"] or result["rule"]
     history.append({"role": "user", "content": text})
     history.append({"role": "assistant", "content": answer})
 
@@ -47,8 +48,10 @@ def chat(message, history, session):
         status += f" · 叫你 {state['player_name']}"
 
     probe = ""
-    if result["atom"] and result["atom"] != result["rule"]:
+    if result["used"] == "句库" and result["atom"] != result["rule"]:
         probe = f"规则老师会说：{result['rule']}"
+    elif result["used"] == "规则" and result["atom"]:
+        probe = f"句库模型会选：{result['atom']}"
     return history, session, status, probe, ""
 
 
@@ -69,8 +72,8 @@ with gr.Blocks(title=f"{NAME} · 句库 NPC") as demo:
         reset_btn = gr.Button("重开", scale=1)
     with gr.Accordion("规则老师对照", open=False):
         probe = gr.Markdown()
-    gr.Examples(["你好。", "我叫小明。", "傻瓜，我走了。", "草药园在哪里？",
-                 "核弹是什么？"], inputs=msg, label="试试")
+    gr.Examples(["你好。", "我叫小明。", "傻瓜，我走了。", "我问她名字。",
+                 "刚才发生了什么？"], inputs=msg, label="试试")
 
     session = gr.State(new_session())
     outputs = [chatbot, session, status, probe, msg]

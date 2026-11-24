@@ -23,6 +23,12 @@ META = os.path.join(HERE, "atoms_zh.json")
 PT = os.path.join(HERE, "atoms_zh.pt")
 ENC_MODEL = "BAAI/bge-small-zh-v1.5"
 SECRET_ATOMS = {fact["text"] for fact in FACTS.values() if fact.get("tier", 0) >= 1}
+# Facts, permissions and episodic memory must come from the rule teacher; the
+# learned selector is kept for social wording where several lines are valid.
+RULE_ONLY = {"boundary", "threat", "meta", "trade", "gift", "promise", "personal",
+             "lore", "secret", "secret_denied", "name_saved", "name_recall",
+             "name_unknown", "memory_recall", "taunt", "apology_meta",
+             "out_of_world", "fallback"}
 
 _LOCK = threading.Lock()
 _MODEL = {"tried": False, "ready": False, "error": "",
@@ -112,9 +118,10 @@ def reply(session: dict | None, text: str) -> tuple[dict, dict]:
     h = session.get("h")
     previous = state.get("last_beat")
 
-    rule_template, _ = teacher_turn(text, state)
+    rule_template, beat = teacher_turn(text, state)
     rule = format_line(rule_template, state)
-    result = {"rule": rule, "atom": None, "used": "规则", "confidence": None,
+    result = {"rule": rule, "atom": None, "reply": rule, "used": "规则",
+              "confidence": None,
               "state": {"trust": state["trust"], "turn": state["turn"],
                         "player_name": state.get("player_name", "")}}
 
@@ -141,6 +148,10 @@ def reply(session: dict | None, text: str) -> tuple[dict, dict]:
             if "{player_name}" in line:
                 line = line.format(player_name=state.get("player_name") or "你")
             result.update(atom=line, used="句库", confidence=round(float(probs.max()), 3))
+            if beat in RULE_ONLY:
+                result.update(reply=rule, used="规则")
+            else:
+                result["reply"] = line
             h = new_h[0].tolist()
         except Exception as exc:
             result["error"] = str(exc)[:200]

@@ -154,6 +154,7 @@ def _plan(r: dict, state: dict, profile: dict) -> dict:
         state["last_quest"] = profile["quest"]
         if referenced:
             state["last_fact"] = referenced[0]["id"]
+            state["fact_depth"] = 0
         return _beat(plan, "quest_given", line=text)
 
     if intent == "trade":
@@ -226,6 +227,7 @@ def _reveal(plan: dict, fact: dict, profile: dict, state: dict) -> dict:
     plan["beat"] = "lore"
     plan["slots"]["text"] = fact["text"]
     state["last_fact"] = fact["id"]
+    state["fact_depth"] = 0
     return plan
 
 
@@ -241,8 +243,20 @@ def _followup(plan: dict, state: dict, profile: dict) -> dict:
         return _beat(plan, "followup_where",
                      where=fact.get("where", "I've said all I'll say about that."))
     if "why" in low:
+        if fact.get("why"):
+            # A fact-specific reason beats the shared wary line.
+            return _beat(plan, "lore", text=fact["why"])
         return _beat(plan, "followup_why")
-    return _beat(plan, "followup_more", detail=fact.get("detail", fact["text"]))
+    depth = int(state.get("fact_depth", 0))
+    state["fact_depth"] = depth + 1
+    more = fact.get("more")
+    if depth == 0:
+        text = fact.get("detail", fact["text"])
+    elif isinstance(more, list) and more:
+        text = more[min(depth - 1, len(more) - 1)]
+    else:
+        text = more or fact.get("detail") or fact["text"]
+    return _beat(plan, "followup_more", detail=text)
 
 
 # ---------------------------------------------------------------------------
@@ -252,12 +266,21 @@ def _choose(lines: list[str], turn: int) -> str:
     return lines[int(turn) % len(lines)]
 
 
+def _trust_band(trust: int) -> str:
+    if trust >= 60:
+        return "close"
+    if trust >= 30:
+        return "warm"
+    return "cold"
+
+
 def _surface(plan: dict, state: dict, profile: dict, text: str) -> str:
     turn = state["turn"]
     beat = plan["beat"]
     # A repeat visit needs its own bank bucket, while the plan keeps one beat name.
     key = "greet_again" if beat == "greeting" and turn > 1 else beat
-    entry = bank.pick(state.get("profile", ""), key, turn, state.get("salt", 0))
+    entry = bank.pick(state.get("profile", ""), key, turn, state.get("salt", 0),
+                      band=_trust_band(int(state.get("trust", 0))))
     if entry:
         try:
             line = entry["en"].format(**plan["slots"])

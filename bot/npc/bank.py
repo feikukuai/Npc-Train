@@ -89,15 +89,24 @@ def update_zh(bucket: str, beat: str, en: str, zh: str) -> None:
                 return
 
 
-def pick(profile: str, beat: str, turn: int = 0, salt: int = 0) -> dict | None:
+def pick(profile: str, beat: str, turn: int = 0, salt: int = 0,
+         band: str | None = None) -> dict | None:
     """Return {"en", "zh"} for this persona and beat, or None.
 
-    Selection is deterministic per session (`salt`) and rotates with the turn, so two
-    players see different orders while one player does not hear the same line twice
-    in a row.
+    `band` ("cold" / "warm" / "close") prefers a trust-specific bucket such as
+    ``greeting@warm`` and falls back to the plain beat. Selection is deterministic
+    per session (`salt`) and rotates with the turn, so two players see different
+    orders while one player does not hear the same line twice in a row.
     """
-    for bucket in (profile, "*"):
-        entries = lines(bucket, beat)
+    order = []
+    if band:
+        order.append((profile, f"{beat}@{band}"))
+    order.append((profile, beat))
+    if band:
+        order.append(("*", f"{beat}@{band}"))
+    order.append(("*", beat))
+    for bucket, key in order:
+        entries = lines(bucket, key)
         if entries:
             entry = entries[(int(turn) + int(salt)) % len(entries)]
             if isinstance(entry, dict) and entry.get("en"):

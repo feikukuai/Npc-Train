@@ -251,6 +251,24 @@
       {"en": "You look like a week of bad roads. Come in.", "zh": "你看着像走了一星期烂路。进来。"},
       {"en": "Wipe your boots and tell me everything.", "zh": "把靴子擦干净，然后什么都跟我说。"}
     ],
+    "greeting@cold": [
+      {"en": "You again. Say your business and mind your manners.", "zh": "又是你。说事，注意礼数。"},
+      {"en": "I'm not in the mood for company. Make it quick.", "zh": "我没心情待客。有话快说。"},
+      {"en": "What do you want? And don't touch the beds.", "zh": "你要什么？别碰那些苗床。"},
+      {"en": "You've a nerve coming back here. Speak.", "zh": "你还有脸回来。说。"}
+    ],
+    "greeting@warm": [
+      {"en": "There you are. Kettle's on.", "zh": "你可来了。水烧上了。"},
+      {"en": "Come in, mind the nettles.", "zh": "进来吧，当心荨麻。"},
+      {"en": "You look like you've walked a long road. Sit.", "zh": "看样子你走了不少路。坐。"},
+      {"en": "Good, I was starting to worry.", "zh": "太好了，我正开始担心。"}
+    ],
+    "greeting@close": [
+      {"en": "Oh, thank the bees. Come here.", "zh": "哦，谢天谢地。过来。"},
+      {"en": "You're a sight for sore eyes. Sit by the fire.", "zh": "看见你真好。坐到炉边来。"},
+      {"en": "I kept the kettle on. I hoped you'd come.", "zh": "我一直烧着水。我就盼你来。"},
+      {"en": "There's bread on the table and a chair that's yours.", "zh": "桌上有面包，那把椅子是你的。"}
+    ],
     "greet_again": [
       {"en": "Back again? Good. The kettle's still warm.", "zh": "又来了？好。水还是温的。"},
       {"en": "You again. Sit down before Pip claims your chair.", "zh": "又是你。快坐，别让皮普占了你的椅子。"},
@@ -260,6 +278,21 @@
       {"en": "Third time today. People will talk.", "zh": "今天第三趟了。人家要说闲话了。"},
       {"en": "Come in, come in. The bread's still warm.", "zh": "进来，进来。面包还热着。"},
       {"en": "Good. I was running out of things to worry about.", "zh": "太好了。我正愁没别的事可担心。"}
+    ],
+    "greet_again@cold": [
+      {"en": "Back so soon. What is it now?", "zh": "这么快又回来。又怎么了？"},
+      {"en": "You again. I'm busy.", "zh": "又是你。我忙着。"},
+      {"en": "Say it quickly, I've beds to see to.", "zh": "快说，我还有畦要管。"}
+    ],
+    "greet_again@warm": [
+      {"en": "Back again? Kettle's still warm.", "zh": "又来了？水还温着。"},
+      {"en": "You again. Sit before Pip steals your chair.", "zh": "又是你。快坐，别让皮普抢了椅子。"},
+      {"en": "Twice today. Either you missed me or something's wrong.", "zh": "今天两趟。不是想我，就是出事了。"}
+    ],
+    "greet_again@close": [
+      {"en": "You're back. I saved you the good cup.", "zh": "你回来了。好杯子给你留着。"},
+      {"en": "There you are. I was watching the gate.", "zh": "你可算来了。我一直看着大门。"},
+      {"en": "Come in out of the cold. I've kept your chair.", "zh": "快进来暖和。你的椅子我留着呢。"}
     ],
     "meta_npc": [
       {"en": "NPC? Is that a new word from the city?", "zh": "NPC？这是城里传来的新词？"},
@@ -341,6 +374,11 @@
       {"en": "When I'm sad I weed. The beds are very tidy these days.", "zh": "难过的时候我就拔草。这些天畦里可干净了。"},
       {"en": "I'd rather talk about you than about me.", "zh": "我更想聊你，不太想聊我。"},
       {"en": "There's more to me than herbs, you know. Ask properly.", "zh": "我可不只是草药，你知道的。好好问。"}
+    ],
+    "personal@close": [
+      {"en": "You know most of it already. Ask me the rest over tea.", "zh": "你大多都知道了。剩下的边喝茶边问。"},
+      {"en": "I don't have to pretend with you. That's rare.", "zh": "在你面前我不用装。这很难得。"},
+      {"en": "Ask me anything. I'll tell you true.", "zh": "你想问什么就问。我会说实话。"}
     ]
   }
 }

@@ -9,3 +9,6 @@ modelscope>=1.20
 sentencepiece>=0.2
 sacremoses>=0.1
 # torch / gradio 由基础镜像和创空间 SDK 提供，不重复安装
+# 可选：本地语义判断（GLiNER2.5-Decide 340M，Apache-2.0）。
+# 取消下面一行的注释并重启即可启用；不装则规则引擎照常工作。
+# gliner2[local]>=2.1

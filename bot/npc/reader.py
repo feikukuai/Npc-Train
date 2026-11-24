@@ -15,6 +15,7 @@ import re
 from functools import lru_cache
 
 from ..understanding import understand
+from . import semantic
 
 SAFETY = re.compile(
     r"\b(kill myself|killing myself|suicide|suicidal|end my life|want to die|"
@@ -146,6 +147,11 @@ def read(text: str, memory: dict | None = None, profile: dict | None = None) -> 
     fact, score = _best_fact(clean, profile) if profile else (None, 0)
     if fact and intent in ("fallback", "out_of_world", "personal"):
         intent = "lore"
+    elif intent in ("fallback", "out_of_world"):
+        # Regex missed the phrasing; a small decision model may still know the intent.
+        guess = semantic.classify(clean)
+        if guess:
+            intent = guess
     return {
         "intent": intent,
         "slots": slots,

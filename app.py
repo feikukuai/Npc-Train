@@ -27,6 +27,7 @@ from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokeni
 from bot.npc import activate as npc_activate
 from bot.npc import bank as npc_bank
 from bot.npc import grower as npc_grower
+from bot.npc import semantic as npc_semantic
 from bot.npc.profiles import PROFILES
 
 LFM_ID = "LiquidAI/LFM2.5-350M"
@@ -634,8 +635,17 @@ def _status(note="就绪"):
     bot = "失败" if _pybot["error"] else ("就绪" if _pybot_ready.is_set() else "加载中")
     grow = npc_grower.stats()
     growth = "关" if not GROW_ENABLED else f"+{grow['extra']}（拒 {grow['rejected']}）"
+    sem = npc_semantic.status()
+    if not sem["enabled"]:
+        sem_txt = "关"
+    elif sem["loaded"]:
+        sem_txt = "就绪"
+    elif sem["ready"]:
+        sem_txt = "未安装"
+    else:
+        sem_txt = "加载中"
     return (f"**{note}**　Opus-MT：{opus}　LFM2.5：{lfm}　PyBot NPC：{bot}"
-            f"　台词库自扩：{growth}")
+            f"　台词库自扩：{growth}　语义判断：{sem_txt}")
 
 
 def reset(npc_choice="Grom · 铁匠", guild=False):

@@ -127,8 +127,8 @@
 <div class="app">
   <header>
     <div class="brand">
-      <h1>小红 · 句库对话</h1>
-      <span class="sub">规则引擎 vs 整句预测（166 句）</span>
+      <h1 id="title">NPC · 句库对话</h1>
+      <span class="sub" id="sub">规则引擎 vs 整句预测</span>
     </div>
     <div class="spacer"></div>
     <div class="badges">
@@ -146,7 +146,7 @@
   </header>
 
   <main id="log">
-    <p class="note" id="note">左边是原来的规则 NPC，右边是只学“从句库里挑一句”的 64 维记忆模型。它不会写新句子，但每次都会说完整的话。</p>
+    <p class="note" id="note">每轮同时显示规则回复和句库模型选的整句。它不会写新句子，但每次都会说完整的话。</p>
   </main>
 
   <footer>
@@ -167,8 +167,17 @@ let atomReady = true;
 
 fetch("/api/health").then(r => r.json()).then(d => {
   atomReady = !!d.atoms;
+  if (d.name) {
+    $("title").textContent = d.name + " · 句库对话";
+    document.title = d.name + " · 句库对话";
+  }
+  if (d.lang === "zh") {
+    $("sub").textContent = "规则老师 vs 整句预测（阿禾，59 句）";
+    $("note").textContent = "阿禾五岁半，只认识药铺、药园、老井和橘猫阿团。左边是规则老师，右边是只从句库里挑一句的 64 维记忆模型。";
+    $("input").placeholder = "和阿禾说点什么，例如：你好。 / 草药园在哪里？ / 糖多少钱？";
+  }
   if (!atomReady) {
-    $("note").textContent = "没有找到 expertnet/atoms.pt，句库模型不可用；先运行 python -m expertnet.atoms 再刷新。规则 NPC 仍可使用。";
+    $("note").textContent = "没有找到句库模型文件，句库模式不可用；先运行训练脚本再刷新。规则回复仍可使用。";
     document.querySelector('[data-mode="atom"]').disabled = true;
   }
 }).catch(() => {});

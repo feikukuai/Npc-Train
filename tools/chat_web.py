@@ -28,21 +28,36 @@ from expertnet.sentence import HFSentenceEncoder
 PAGE = os.path.join(ROOT, "web", "chat.html")
 PROFILE = "xiaohong"
 DEFAULT_TRUST = 35
+ZH_MODEL = ("BAAI/bge-small-zh-v1.5", "cls")
 
 
 class ChatSession:
-    def __init__(self, atom: AtomSession | None, atoms_available: bool):
-        self.memory: dict = {}
-        engine.activate(self.memory, PROFILE, trust=DEFAULT_TRUST)
+    def __init__(self, atom: AtomSession | None, atoms_available: bool, lang: str):
+        self.lang = lang
         self.atom = atom
         self.atoms_available = atoms_available
+        self.memory: dict = {}
+        self.zh_state = None
+        if lang == "zh":
+            from expertnet.zh.persona import new_state
+            self.zh_state = new_state()
+        else:
+            engine.activate(self.memory, PROFILE, trust=DEFAULT_TRUST)
 
     def say(self, text: str, mode: str) -> dict:
-        result = engine.turn(text, self.memory)
-        state = self.memory["npc"]
-        out = {"rule": result["reply"], "atom": None,
+        if self.lang == "zh":
+            from expertnet.zh.persona import teacher_turn
+            rule, _ = teacher_turn(text, self.zh_state)
+            state = self.zh_state
+            profile = "ahe"
+        else:
+            result = engine.turn(text, self.memory)
+            rule = result["reply"]
+            state = self.memory["npc"]
+            profile = state["profile"]
+        out = {"rule": rule, "atom": None,
                "state": {"trust": state["trust"], "turn": state["turn"],
-                         "profile": state["profile"]},
+                         "profile": profile},
                "atoms_available": self.atoms_available}
         if self.atom is not None and mode != "rule":
             line, conf = self.atom.reply(text, state)
@@ -50,22 +65,31 @@ class ChatSession:
         return out
 
     def reset(self) -> None:
-        engine.activate(self.memory, PROFILE, trust=DEFAULT_TRUST)
+        if self.lang == "zh":
+            from expertnet.zh.persona import new_state
+            self.zh_state = new_state()
+        else:
+            engine.activate(self.memory, PROFILE, trust=DEFAULT_TRUST)
         if self.atom is not None:
             self.atom.reset()
 
 
 class Server:
-    def __init__(self, checkpoint: str):
+    def __init__(self, checkpoint: str, lang: str = "en"):
         self.lock = threading.Lock()
         self.sessions: dict[str, ChatSession] = {}
+        self.lang = lang
+        self.name = "阿禾" if lang == "zh" else "小红"
         self.atoms_available = os.path.exists(checkpoint)
         self.hf = None
         self.template = None
         if self.atoms_available:
             try:
                 print("loading sentence encoder...")
-                self.hf = HFSentenceEncoder()
+                if lang == "zh":
+                    self.hf = HFSentenceEncoder(ZH_MODEL[0], pooling=ZH_MODEL[1])
+                else:
+                    self.hf = HFSentenceEncoder()
                 self.template = load_atoms(checkpoint, self.hf)
                 print("sentence-atom model ready")
             except Exception:
@@ -84,7 +108,7 @@ class Server:
                 atom = None
                 if self.atoms_available:
                     atom = AtomSession(self.template.model, self.hf, self.template.atoms)
-                entry = ChatSession(atom, self.atoms_available)
+                entry = ChatSession(atom, self.atoms_available, self.lang)
                 self.sessions[sid] = entry
             return entry
 
@@ -115,7 +139,8 @@ class Handler(BaseHTTPRequestHandler):
             self._write(200, SERVER.page(), "text/html; charset=utf-8")
         elif path == "/api/health":
             self._json(200, {"ok": True, "atoms": SERVER.atoms_available,
-                             "profile": PROFILE})
+                             "profile": PROFILE, "lang": SERVER.lang,
+                             "name": SERVER.name})
         elif path == "/favicon.ico":
             self._write(204, b"", "image/x-icon")
         else:
@@ -152,12 +177,17 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=7860)
-    parser.add_argument("--checkpoint", default=os.path.join(ROOT, "expertnet", "atoms.pt"))
+    parser.add_argument("--lang", choices=["en", "zh"], default="en")
+    parser.add_argument("--checkpoint", default=None)
     args = parser.parse_args()
 
-    SERVER = Server(args.checkpoint)
+    checkpoint = args.checkpoint
+    if checkpoint is None:
+        checkpoint = os.path.join(ROOT, "expertnet", "zh" if args.lang == "zh" else "",
+                                  "atoms_zh.pt" if args.lang == "zh" else "atoms.pt")
+    SERVER = Server(checkpoint, args.lang)
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"serving on http://{args.host}:{args.port}")
+    print(f"serving {SERVER.name} on http://{args.host}:{args.port}")
     print("press Ctrl+C to stop")
     try:
         httpd.serve_forever()

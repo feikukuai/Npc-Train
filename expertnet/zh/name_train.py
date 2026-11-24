@@ -13,6 +13,7 @@ import random
 
 import torch
 
+from ..atoms import make_model
 from .adversary import Attacker, audit, label_session
 from .adversarial import clone_state, export, fine_tune
 from .chat import META, components
@@ -71,6 +72,8 @@ def main() -> int:
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--general", type=int, default=300)
     parser.add_argument("--eval", type=int, default=200)
+    parser.add_argument("--init", default=None,
+                        help="optional candidate .pt; promote to main only if accepted")
     parser.add_argument("--seed", type=int, default=71)
     args = parser.parse_args()
 
@@ -79,10 +82,20 @@ def main() -> int:
     loaded = components()
     if loaded is None:
         return 1
-    model, hf, atoms, beats = loaded
-    with open(META, encoding="utf-8") as fh:
-        meta = json.load(fh)
-    config, encoder = meta["config"], meta.get("encoder", {})
+    _, hf, _, _ = loaded
+    if args.init:
+        ckpt = torch.load(args.init, map_location="cpu")
+        model = make_model(ckpt["config"])
+        model.load_state_dict(ckpt["state"])
+        model.eval()
+        atoms, beats = ckpt["atoms"], ckpt["beats"]
+        config = ckpt["config"]
+        encoder = ckpt.get("encoder", {})
+    else:
+        model, _, atoms, beats = loaded
+        with open(META, encoding="utf-8") as fh:
+            meta = json.load(fh)
+        config, encoder = meta["config"], meta.get("encoder", {})
     atom_index = {a: i for i, a in enumerate(atoms)}
     beat_index = {b: i for i, b in enumerate(beats)}
     base_rows = play(SEEDS, 300, 6, seed=100)
@@ -136,7 +149,8 @@ def main() -> int:
                            "deploy": base_deploy},
               "tuned": {"name": name_after, "overall": overall_after,
                         "deploy": deploy_after},
-              "accepted": accepted, "train_chains": args.chains}
+              "accepted": accepted, "train_chains": args.chains,
+              "init": args.init}
     with open(os.path.join(HERE, "name_report.json"), "w", encoding="utf-8") as fh:
         json.dump(report, fh, ensure_ascii=False, indent=1)
     return 0

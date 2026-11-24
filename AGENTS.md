@@ -6,15 +6,14 @@
 ## 0. 当前状态（2026-11）
 
 - 角色：**阿禾**，五岁半，村口药铺家的孩子。只认识药铺、药园、老井、橘猫阿团和娘。
-- 输出：从 **84 个句子原子**里选一句；不是逐字生成。
-- 记忆：一个 **64 维** GRU 状态，跨轮携带。
+- 输出：从 **86 个句子原子**里选一句；不是逐字生成。
+- 记忆：一个 **96 维** GRU 状态，跨轮携带。
 - 思考：一个 **10 类**上下文标签（`fresh` / `after_insult` / `memory_probe`…），软嵌入送进句子头。
 - 句向量：`BAAI/bge-small-zh-v1.5`，512 维，CLS pooling，冻结。
 - 规则老师：`expertnet/zh/persona.py`，决定意图、事实权限、情绪、名字记忆。
-- 基础训练：7200 回合，HELDOUT 整句命中约 **0.767**，beat 约 0.809，思考标签 0.919。
-- 长对话对抗训练：固定长对话整句命中 **0.815 → 0.889**，行为 0.889 → 0.898；
-  held-out 基本持平（0.769 → 0.771）。
-- 名字专项：raw name atom **0.688 → 0.885**，部署 0.702 → 0.701（见 `name_train.py`）。
+- 基础训练：固定测试 atom 约 **0.808**，beat 0.816，思考标签 0.932。
+- 长对话对抗训练（64 维版本历史）：固定长对话整句命中 **0.815 → 0.889**，行为 0.889 → 0.898。
+- 名字专项：96 维候选 raw name atom **0.667 → 0.875**，部署 0.707 → 0.708。
 - 部署：ModelScope 创空间 `feihukuai/PyBot-ZH`，入口 `app.py`。
 - GitHub：`https://github.com/feikukuai/Npc-Train`。
 
@@ -69,15 +68,15 @@ $env:PYTHONPATH=(Get-Location).Path
               上一轮 beat one-hot(31),
               是否已知玩家名, mood
                                          │
-                         concat ──> 手写 GRU（64 维记忆）
+                         concat ──> 手写 GRU（96 维记忆）
                                          │
                     思考头：10 类上下文标签 ──> 软嵌入
                                          │
                       ┌──────────────────┴─────────────────┐
-                句子头：84 类 softmax               beat 头：31 类（辅助）
+                句子头：86 类 softmax               beat 头：31 类（辅助）
 ```
 
-- 模型约 **20 万参数**，CPU 训练/推理。
+- 模型约 **27 万参数**，CPU 训练/推理。
 - 状态向量的 31 个槽位直接对应中文 beat，不再使用别名映射。
 - `mood` 在 `[-1, 1]`，每轮先乘 0.85 衰减；被骂/被威胁下降，送礼/道歉上升。
 - 名字和“刚才的话”用 `{player_name}` / `{last_player}` 模板放进句库，渲染时填入；
@@ -91,7 +90,7 @@ $env:PYTHONPATH=(Get-Location).Path
   名字、秘密权限、out_of_world、fallback；
 - 其余 beat（问候、告别、感谢、道歉、闲聊、被骂后的反应、`taunt`、`apology_meta`、
   `memory_recall`）用句库模型；
-- 模型仍然会前向一次，用来更新 64 维记忆和思考标签，但输出可以被规则覆盖。
+- 模型仍然会前向一次，用来更新 96 维记忆和思考标签，但输出可以被规则覆盖。
 
 `recent` 是情景记忆：最近 6 轮的 `{player, reply, beat}`。`memory_recall` 的句子是模板
 `你刚才说：{last_player}。`，显示时填入上一轮玩家原话；因此记忆能力已经进入学生模型，
@@ -135,12 +134,13 @@ out_of_world ×2 → personal   正常闲聊 + 短句“嗯/哦/那个……”
 ### 5.1 基础训练
 
 ```powershell
-python -m expertnet.zh.train --sessions 1000 --epochs 30 --demo
+python -m expertnet.zh.train --sessions 1500 --epochs 40 --steps 10 --hidden 96
+python -m expertnet.zh.name_train --chains 1200 --epochs 2 --lr 1e-4 --general 300
 ```
 
-- 生成 6 轮会话，80% 走脚本弧线，20% 随机；
-- 空 batch 之后 `torch.save` 三个文件（.pt / .safetensors / .json）；
-- `--demo` 会跑固定上下文脚本，当前应为 **15/15**。
+- 生成 6/10 轮会话，80% 走脚本弧线，20% 随机；
+- 写出 `.pt` / `.safetensors` / `.json` 三个文件；
+- `--demo` 会跑固定上下文脚本并打印分数。
 
 ### 5.2 对抗长对话训练
 
@@ -151,7 +151,7 @@ python -m expertnet.zh.adversarial --rounds 3 --sessions 80 --steps 14 --epochs 
 每轮：
 
 1. Attacker 生成 80 段 14 轮对话（含难例插入）；
-2. Student 带着 64 维记忆逐轮回答；
+2. Student 带着 96 维记忆逐轮回答；
 3. Auditor 用老师重放，记录每一轮的
    `text / trust / category / target / pred / hit / behaviour / confidence`；
 4. 失败的会话取 **完整前缀**（保留名字和情绪状态）加入训练，另加一条改写；
@@ -188,9 +188,8 @@ python -m expertnet.zh.adversarial --rounds 3 --sessions 80 --steps 14 --epochs 
 
 当前基线：
 
-- 基础训练：atom 0.767，beat 0.809，thought 0.919，top-3 0.888，context +0.416；
-- 长对话：atom 0.815 → 0.889，behaviour 0.889 → 0.898，thought 0.938 → 0.901；
-- 名字类原始学生仍约 0.50（部署走规则）。
+- 基础训练：atom 0.808，beat 0.816，thought 0.932，name 0.875，deploy 0.708；
+- 长对话（64 维版本）：atom 0.815 → 0.889，behaviour 0.889 → 0.898，thought 0.938 → 0.901。
 
 注意：
 
@@ -234,12 +233,11 @@ python tools/chat_web.py --lang zh --port 7861
 正收益转为 50,000 的明显负收益，只有思考标签继续升。详见 `SCALING.md`。
 变体权重 `atoms_zh_scale*.pt` 与报告被 gitignore，**不要替换主模型**。
 
-1. ~~`name` 类别约 0.50~~：已用 `expertnet/zh/name_train.py` 的“设名→干扰→追问”课程
-   提升到 **0.885**；总体 raw atom 下降约 0.012，部署层 0.702 → 0.701。
-   后续若要继续优化，优先加不同间隔/不同干扰类型，而不是继续加量。
+1. ~~`name` 类别约 0.50~~：96 维候选上从 **0.667 → 0.875**；总体 raw atom 0.812 → 0.808，
+   部署 0.707 → 0.708。后续若要继续优化，优先加不同间隔/不同干扰类型，而不是继续加量。
 2. “回见”是 HELDOUT 说法，学生没见过；这是词表泛化问题，不是上下文问题。
    可以扩 `SEEDS`，但要同步换新的 HELDOUT 说法。
-3. 句库只有 84 句，老师是天花板；继续对抗只能改善路由，不会增加知识。
+3. 句库只有 86 句，老师是天花板；继续对抗只能改善路由，不会增加知识。
 4. 长对话测试集仍偏小；建议扩到 30 段、500 轮，并固定随机种子。
 5. 思考头目前是单步标签；下一步可以试“先想两步”：先预测话题/情绪，再预测句子，
    或者在推理时把 top-2 思考标签都送进句子头。

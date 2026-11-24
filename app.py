@@ -25,6 +25,8 @@ from modelscope import snapshot_download
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer
 
 from bot.npc import activate as npc_activate
+from bot.npc import bank as npc_bank
+from bot.npc import grower as npc_grower
 from bot.npc.profiles import PROFILES
 
 LFM_ID = "LiquidAI/LFM2.5-350M"
@@ -33,6 +35,19 @@ OPUS_ID = {
     "zh2en": "Helsinki-NLP/opus-mt-zh-en",
 }
 MAX_INPUT_TOKENS = 4096
+
+# Background bank growth: served lines never wait for a model, but LFM calls are
+# serialized so generation cannot interleave with foreground translation.
+_LFM_LOCK = threading.Lock()
+_OPUS_LOCK = threading.Lock()
+GROW_ENABLED = os.environ.get("NPC_BG_GROW", "1") != "0"
+RUNTIME_BANK = os.environ.get(
+    "NPC_BANK_RUNTIME", os.path.join(os.getcwd(), "bank_runtime.json")
+)
+try:
+    npc_bank.load_extras(RUNTIME_BANK)
+except Exception:  # noqa: BLE001 - a bad overlay must not stop the app
+    pass
 
 # --- Opus-MT ----------------------------------------------------------------
 _opus = {"en2zh": None, "zh2en": None, "tokenizer": {}, "error": None}
@@ -122,6 +137,48 @@ def _get_pybot():
     return _pybot["runtime"]
 
 
+# --- 后台扩充台词库 ----------------------------------------------------------
+def _bg_generate(system, user):
+    return _lfm_generate(
+        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        max_new_tokens=64,
+        block=False,
+    )
+
+
+def _bg_translate(text):
+    if not _opus_ready.is_set() or _opus["error"]:
+        return ""
+    try:
+        return translate(text, "en2zh", "opus") or ""
+    except Exception:  # noqa: BLE001 - translation is a bonus, not a requirement
+        return ""
+
+
+def _warm_grower():
+    if not GROW_ENABLED:
+        return
+    if not _lfm_ready.wait(timeout=900) or _lfm["error"]:
+        return
+    npc_grower.start(_bg_generate, _bg_translate, idle=1.5, interval=1.5,
+                     persist=RUNTIME_BANK)
+
+
+threading.Thread(target=_warm_grower, daemon=True).start()
+
+
+def _remember_turn(result, player_text, memory):
+    state = memory.get("npc") if isinstance(memory, dict) else None
+    key = state.get("profile") if isinstance(state, dict) else None
+    if not key:
+        return
+    try:
+        npc_grower.remember(key, (result.get("npc") or {}).get("beat"),
+                            player_text, str(result.get("reply") or ""))
+    except Exception:  # noqa: BLE001 - bookkeeping must not break a turn
+        pass
+
+
 # --- 翻译 -------------------------------------------------------------------
 CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 LATIN = re.compile(r"[A-Za-z]")
@@ -194,33 +251,40 @@ def _chunks(text, limit=400):
 def _opus_chunk(text, direction):
     model, tokenizer = _get_opus(direction)
     inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
-    with torch.no_grad():
-        output = model.generate(
-            **inputs,
-            max_new_tokens=512,
-            num_beams=4,
-            early_stopping=True,
-        )
+    with _OPUS_LOCK:
+        with torch.no_grad():
+            output = model.generate(
+                **inputs,
+                max_new_tokens=512,
+                num_beams=4,
+                early_stopping=True,
+            )
     return tokenizer.decode(output[0], skip_special_tokens=True)
 
 
-def _lfm_generate(messages, max_new_tokens=288):
+def _lfm_generate(messages, max_new_tokens=288, block=True):
     model, tokenizer = _get_lfm()
     inputs = tokenizer.apply_chat_template(messages, return_tensors="pt", add_generation_prompt=True)
     input_ids = inputs.input_ids if hasattr(inputs, "input_ids") else inputs
     if input_ids.shape[1] > MAX_INPUT_TOKENS:
         raise RuntimeError(f"输入超过 {MAX_INPUT_TOKENS} tokens")
-    with torch.no_grad():
-        output = model.generate(
-            input_ids,
-            max_new_tokens=int(max_new_tokens),
-            temperature=0.2,
-            top_p=0.9,
-            repetition_penalty=1.05,
-            do_sample=True,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-    return tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
+    if not _LFM_LOCK.acquire(blocking=block):
+        # Background work never waits for, or blocks, a player's turn.
+        raise RuntimeError("lfm busy")
+    try:
+        with torch.no_grad():
+            output = model.generate(
+                input_ids,
+                max_new_tokens=int(max_new_tokens),
+                temperature=0.2,
+                top_p=0.9,
+                repetition_penalty=1.05,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id,
+            )
+        return tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
+    finally:
+        _LFM_LOCK.release()
 
 
 def _lfm_chunk(text, direction):
@@ -458,6 +522,7 @@ def _chat_fast(message, history, memory, profile):
     """纯英文快速模式：不碰翻译与润色，英文进、英文出。"""
     result = _get_pybot().turn(message, memory)
     en_reply = str(result.get("reply") or "")
+    _remember_turn(result, message, memory)
     history = history + [
         {"role": "user", "content": message},
         {"role": "assistant", "content": en_reply},
@@ -477,6 +542,7 @@ def chat(message, history, memory, npc_choice, guild, show_en, engine, polish, f
     text = (message or "").strip()
     if not text:
         return "", history, memory, _npc_status(profile, memory, "等待输入")
+    npc_grower.note_activity()
     engine_key = "lfm" if str(engine).startswith("LFM") else (
         "opus" if str(engine).startswith("Opus") else "auto"
     )
@@ -515,6 +581,7 @@ def chat(message, history, memory, npc_choice, guild, show_en, engine, polish, f
 
         result = _get_pybot().turn(en_user, memory)
         en_reply = str(result.get("reply") or "")
+        _remember_turn(result, en_user, memory)
         bank_zh = str(result.get("zh") or "")
         if bank_zh:
             # Written and translated offline; no model call, no polish needed.
@@ -565,7 +632,10 @@ def _status(note="就绪"):
     opus = "失败" if _opus["error"] else ("就绪" if _opus_ready.is_set() else "加载中")
     lfm = "失败" if _lfm["error"] else ("就绪" if _lfm_ready.is_set() else "加载中")
     bot = "失败" if _pybot["error"] else ("就绪" if _pybot_ready.is_set() else "加载中")
-    return f"**{note}**　Opus-MT：{opus}　LFM2.5：{lfm}　PyBot NPC：{bot}"
+    grow = npc_grower.stats()
+    growth = "关" if not GROW_ENABLED else f"+{grow['extra']}（拒 {grow['rejected']}）"
+    return (f"**{note}**　Opus-MT：{opus}　LFM2.5：{lfm}　PyBot NPC：{bot}"
+            f"　台词库自扩：{growth}")
 
 
 def reset(npc_choice="Grom · 铁匠", guild=False):
@@ -582,7 +652,9 @@ with gr.Blocks(title="NPC 模拟") as demo:
         "**默认开启纯英文快速模式**：直接用英文对话，跳过翻译和润色，几乎没有额外等待。"
         "取消勾选后可用中文，NPC 的回答会译回中文并用 LFM2.5 润色。\n\n"
         "高频台词来自离线台词库（英文 + 中文），命中时中文模式也省掉翻译；"
-        "决定说什么的仍是规则引擎，台词库只换措辞。"
+        "决定说什么的仍是规则引擎，台词库只换措辞。\n\n"
+        "**后台自扩**：你读字或打字的间隙，LFM 会参考刚才的对话扩充同义台词，"
+        "校验后入库；前台永远查表，不等模型。"
     )
     with gr.Row():
         with gr.Column(scale=3):

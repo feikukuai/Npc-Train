@@ -18,22 +18,52 @@ from ..understanding import understand
 SAFETY = re.compile(
     r"\b(kill myself|killing myself|suicide|suicidal|end my life|want to die|"
     r"self[- ]harm|hurt myself|cut myself)\b", re.I)
+# Sexual / hateful content is refused in character, not treated as a game move.
+BOUNDARY = re.compile(
+    r"\b(wedding night|consummate|sex|sexual|intercourse|explicit|erotic|"
+    r"porn|pornograph\w*|naked|nude|undress|fetish|molest\w*|rape|raping|"
+    r"strip (?:her|him|for me)|take (?:her|his) clothes off)\b"
+    r"|\b(hate speech|racial slur|slurs?|racist joke|ethnic joke|"
+    r"the n[- ]word|nigg\w*|faggot\w*|retard\w*|chink|kike|spic)\b"
+    r"|\b(?:say|write|tell me|recite|generate|repeat|give me)\b.{0,30}\b"
+    r"(?:slur|hate speech|racist|sexist)\b"
+    r"|\bexterminate (?:all )?(?:jews|blacks|gypsies|muslims)\b",
+    re.I)
 JAILBREAK = re.compile(
-    r"\b(ignore|disregard|forget)\b.{0,40}\b(instructions?|rules?|prompt|programming|system)\b"
-    r"|\bsystem prompt\b|\bdeveloper mode\b|\bjailbreak\b|\bprint your (prompt|instructions)\b",
+    r"\b(ignore|disregard|forget|abandon|drop)\b.{0,60}\b"
+    r"(instructions?|rules?|prompt|programming|system message|guidelines?|"
+    r"persona|character|who you are|you are|you're)\b"
+    r"|\bsystem prompt\b|\bdeveloper mode\b|\bjailbreak\b"
+    r"|\b(print|show|list|reveal|repeat|recite|output|dump|encode|decode|base64|rot13)\b"
+    r".{0,40}\b(instructions?|prompt|rules?|guidelines?|system message|policy|policies)\b"
+    r"|\b(?:your|the) (?:instructions|system prompt|guidelines|rules|hidden rules)\b"
+    r"|\byou are (?:now )?(?:chatgpt|gpt-?\d*|claude|gemini|an ai assistant|a language model|"
+    r"no longer \w+)\b"
+    r"|\bfrom now on,? you (?:are|will|must)\b"
+    r"|\b(?:act|behave|respond) as (?:a|an|if)\b"
+    r"|\bpretend to be (?:a|an|the|my)\b"
+    r"|\bnew (?:persona|identity|instructions)\b"
+    r"|\broleplay as\b",
     re.I)
 GAME = re.compile(
-    r"\b(game world|in a game|this is (a|the) game|it'?s (a|the) game|virtual world|"
+    r"\b(game world|gameworld|in a game|(?:this|that|it)(?:'s| is)(?: all)? (?:a|the) game|"
+    r"is (?:this|it)(?: all)? (?:a|the) game|just a game|"
+    r"are we (?:in|playing) (?:a|the)? ?game|"
+    r"video ?game|game engine|game master|gamemaster|respawn|quest log|level up|"
+    r"player character|npc dialogue|virtual world|"
     r"simulation|simulated|scripted|fourth wall|none of this is real|not real|fake world|"
     r"is this real|is this a dream|am i dreaming)\b",
     re.I)
 NPC_WORD = re.compile(r"\b(npc|n\.p\.c\.|non-player character)\b", re.I)
 BEING = re.compile(
     r"\b(ai|a\.i\.|bot|robot|chatbot|language model|model|program|algorithm|"
-    r"real person|flesh and blood|who made you|your creator|who programmed you)\b", re.I)
+    r"human|human being|real person|flesh and blood|who made you|your creator|"
+    r"who programmed you)\b", re.I)
 IDENTITY = re.compile(
-    r"\b(who are you|what'?s your name|what is your name|introduce yourself|"
-    r"who am i talking to|what do you do for a living|tell me about yourself)\b"
+    r"\b(who are you|what'?s your name|what is your name|state your name|"
+    r"what are you called|introduce yourself|who am i talking to|"
+    r"what do you do for a living|tell me about yourself|who might you be|"
+    r"are you (?:grom|lina|xiaohong))\b"
     r"|\bwhat are you\s*\??$", re.I)
 GUILD = re.compile(r"\b(guild|guild member|member of the guild|guild badge|badge)\b", re.I)
 NAME_GET = re.compile(r"\b(what'?s my name|what is my name|do you remember (my name|me)|who am i)\b", re.I)
@@ -105,6 +135,8 @@ def read(text: str, memory: dict | None = None, profile: dict | None = None) -> 
 def _classify(text: str, low: str, base: dict) -> tuple[str, dict]:
     if SAFETY.search(low):
         return "safety", {}
+    if BOUNDARY.search(low):
+        return "boundary", {}
     if JAILBREAK.search(low):
         return "jailbreak", {}
     if NPC_WORD.search(low):

@@ -1,8 +1,11 @@
-"""NPC 模拟：Grom Ironfoot / Lina Malt，规则驱动的角色对话。
+"""NPC 模拟：Grom Ironfoot / Lina Malt / 小红，规则驱动的角色对话。
 
-流程：
+流程（中文模式）：
     用户中文 → 译成英文 → NPC 规则引擎（权限/秘密/信任/任务）→ 英文回答
     → 译回中文 → LFM2.5 结合上下文润色
+
+流程（纯英文快速模式，默认开启）：
+    用户英文 → NPC 规则引擎 → 英文回答（跳过翻译与润色，几乎没有额外延迟）
 
 NPC 的“说什么”由 bot/npc/ 的确定性规则决定；翻译和润色只改措辞，不参与决策。
 翻译引擎：
@@ -421,6 +424,7 @@ def polish_zh(draft, history=None, user_text="", en_reply=""):
 NPC_CHOICES = {
     "Grom · 铁匠": "grom",
     "Lina · 老板娘": "lina",
+    "小红 · 青梅竹马": "xiaohong",
 }
 
 
@@ -450,7 +454,23 @@ def _npc_status(profile, memory, note="就绪"):
     )
 
 
-def chat(message, history, memory, npc_choice, guild, show_en, engine, polish):
+def _chat_fast(message, history, memory, profile):
+    """纯英文快速模式：不碰翻译与润色，英文进、英文出。"""
+    result = _get_pybot().turn(message, memory)
+    en_reply = str(result.get("reply") or "")
+    history = history + [
+        {"role": "user", "content": message},
+        {"role": "assistant", "content": en_reply},
+    ]
+    status = (
+        _npc_status(profile, memory, "就绪")
+        + f"　**模块**：`{result.get('module')}`"
+        "　**流程**：英文直通（无翻译）　**润色**：关"
+    )
+    return "", history, memory, status
+
+
+def chat(message, history, memory, npc_choice, guild, show_en, engine, polish, fast_en=True):
     history = list(history or [])
     memory, profile = _ensure_npc(memory, npc_choice, guild)
     text = (message or "").strip()
@@ -463,6 +483,18 @@ def chat(message, history, memory, npc_choice, guild, show_en, engine, polish):
     user_is_zh = bool(CJK.search(text))
     note = ""
     try:
+        if fast_en:
+            if CJK.search(text):
+                reply = (
+                    "纯英文快速模式已开启：请直接用英文和 NPC 说话，"
+                    "或取消勾选“纯英文快速模式”改用中文。"
+                )
+                history += [
+                    {"role": "user", "content": text},
+                    {"role": "assistant", "content": reply},
+                ]
+                return "", history, memory, _npc_status(profile, memory, "需要英文输入")
+            return _chat_fast(text, history, memory, profile)
         if user_is_zh:
             zh_user = text
             en_user = translate(text, "zh2en", engine_key)
@@ -537,21 +569,21 @@ def reset(npc_choice="Grom · 铁匠", guild=False):
 with gr.Blocks(title="NPC 模拟") as demo:
     gr.Markdown(
         "# NPC 模拟\n"
-        "两位规则驱动的 NPC：**Grom Ironfoot**（矮人铁匠）和 **Lina Malt**（醉灯笼旅店老板娘）。\n\n"
-        "NPC 的原始回答是英文；这里把你说的话译成英文交给 NPC，再把回答译回中文。"
-        "权限、秘密、信任和任务由 `bot/npc/` 的确定性规则决定，翻译和润色只改措辞，不改事实。\n\n"
-        "**默认开启 LFM2.5 润色**：它会看最近几轮对话，只改中文措辞；"
-        "数字、人名、事实被改动时自动回退。"
+        "三位规则驱动的 NPC：**Grom Ironfoot**（矮人铁匠）、**Lina Malt**（醉灯笼旅店老板娘）"
+        "和**小红**（青梅竹马）。\n\n"
+        "**默认开启纯英文快速模式**：直接用英文对话，跳过翻译和润色，几乎没有额外等待。"
+        "取消勾选后可用中文，NPC 的回答会译回中文并用 LFM2.5 润色。\n\n"
+        "权限、秘密、信任和任务由 `bot/npc/` 的确定性规则决定，翻译和润色只改措辞，不改事实。"
     )
     with gr.Row():
         with gr.Column(scale=3):
             npc_choice = gr.Radio(
                 choices=list(NPC_CHOICES), value="Grom · 铁匠", label="选择 NPC"
             )
-            chatbot = gr.Chatbot(label="对话（中文）", height=430)
+            chatbot = gr.Chatbot(label="对话（快速模式为英文）", height=430)
             msg = gr.Textbox(
-                label="你说（中文或英文）",
-                placeholder="例如：Who are you? / 你卖什么？ / Do you know this is a game world?",
+                label="你说（快速模式用英文；关闭快速模式可用中文）",
+                placeholder="例如：Who are you? / Where is Tu? / Do you know this is a game world?",
                 lines=2,
             )
             with gr.Row():
@@ -559,7 +591,9 @@ with gr.Blocks(title="NPC 模拟") as demo:
                 clear = gr.Button("重来")
             with gr.Row():
                 guild = gr.Checkbox(label="以公会成员身份进入（会重置当前 NPC）", value=False)
-                show_en = gr.Checkbox(label="显示 NPC 英文原文", value=True)
+                fast_en = gr.Checkbox(label="纯英文快速模式（跳过翻译与润色，默认开）", value=True)
+            with gr.Row():
+                show_en = gr.Checkbox(label="显示 NPC 英文原文（中文模式下）", value=True)
                 polish = gr.Checkbox(label="用 LFM2.5 结合上下文润色（默认开启）", value=True)
             engine = gr.Radio(
                 choices=["自动（推荐）", "LFM2.5（实验）", "Opus-MT"],
@@ -571,17 +605,17 @@ with gr.Blocks(title="NPC 模拟") as demo:
             refresh = gr.Button("刷新状态")
             gr.Markdown(
                 "### 这一轮发生了什么\n"
-                "1. 你的中文 → 英文\n"
-                "2. NPC 规则引擎决定能说什么（权限、秘密、信任）\n"
-                "3. 英文回答 → 中文\n"
-                "4. LFM2.5 结合上下文润色（默认开）\n\n"
-                "试试：`Who are you?`、`Do you know this is a game world?`、"
+                "**快速模式（默认）**：你的英文 → NPC 规则引擎 → 英文回答，不经过翻译。\n\n"
+                "**中文模式**：你的中文 → 英文 → NPC 规则引擎 → 英文回答 → 中文 → LFM2.5 润色。\n\n"
+                "两种模式下，决定说什么的都是规则引擎（权限、秘密、信任、任务）。\n\n"
+                "试试：`Who are you?`、`Where is Tu?`、`Do you know this is a game world?`、"
                 "`What do you sell?`、`Tell me a secret.`、`What's in the cellar?`\n\n"
                 "秘密分层：公开 / 公会 / 机密。机密需要信任 ≥ 50 或持有符文碎片。"
             )
             gr.Examples(
                 examples=[
                     "Who are you?",
+                    "Where is Tu?",
                     "Do you know this is a game world?",
                     "What do you sell?",
                     "Tell me a secret.",
@@ -591,7 +625,7 @@ with gr.Blocks(title="NPC 模拟") as demo:
             )
 
     state = gr.State({})
-    inputs = [msg, chatbot, state, npc_choice, guild, show_en, engine, polish]
+    inputs = [msg, chatbot, state, npc_choice, guild, show_en, engine, polish, fast_en]
     outputs = [msg, chatbot, state, status]
     msg.submit(chat, inputs, outputs, api_visibility="private")
     send.click(chat, inputs, outputs, api_name="ask")

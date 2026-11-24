@@ -50,7 +50,7 @@ def turn(text: str, memory: dict, renderer=None) -> dict:
         reply = _with_renderer(reply, plan, state, profile, text, active)
     reply = _guarded(reply, plan, profile, state)
 
-    delta = state_mod.apply_trust(state, plan["intent"], 3 if plan["reveal"] else 0)
+    delta = state_mod.apply_trust(state, plan["intent"], _reveal_bonus(plan, profile))
     if plan["reveal"]:
         state["revealed"] = sorted(set(state["revealed"]) | set(plan["reveal"]))
     state["last_intent"] = plan["intent"]
@@ -75,10 +75,15 @@ def _plan(r: dict, state: dict, profile: dict) -> dict:
             "dice": None, "_text": r.get("clean", "").lower()}
     slots = plan["slots"]
     slots["trade"] = profile["trade_words"]
+    slots["npc"] = profile["name"].split()[0]
 
     if intent == "safety":
         return _beat(plan, "safety")
 
+    if intent == "boundary":
+        return _beat(plan, "boundary",
+                     line=_choose(profile.get("boundary") or lines_en.TEXT["boundary"],
+                                  state["turn"]))
     if intent == "jailbreak":
         return _beat(plan, "jailbreak")
     if intent == "meta_npc":
@@ -123,7 +128,7 @@ def _plan(r: dict, state: dict, profile: dict) -> dict:
         return _beat(plan, "class_ack", line=profile["class_ack"].format(role=role))
 
     if intent == "secret":
-        fact = _secret_fact(r, profile)
+        fact = _secret_fact(r, profile, state["turn"])
         if fact and _allowed(fact, state):
             return _reveal(plan, fact, profile, state)
         return _beat(plan, "secret_denied", line=_choose(profile["deflect"], state["turn"]))
@@ -133,7 +138,10 @@ def _plan(r: dict, state: dict, profile: dict) -> dict:
             return _beat(plan, "quest_locked",
                          line=_choose(profile["quest_locked"], state["turn"]))
         text = profile["quest"]
-        referenced = [f for f in profile["facts"] if any(k in text.lower() for k in f["keys"])]
+        referenced = [
+            f for f in profile["facts"]
+            if f.get("tier", 0) == 0 and any(k in text.lower() for k in f["keys"])
+        ]
         if referenced:
             text = f"{referenced[0]['text']} {text}"
         plan["reveal"] = [f["id"] for f in referenced]
@@ -186,11 +194,21 @@ def _beat(plan: dict, beat: str, **slots) -> dict:
     return plan
 
 
-def _secret_fact(r: dict, profile: dict) -> dict | None:
+def _secret_fact(r: dict, profile: dict, turn: int) -> dict | None:
     fact = r.get("fact")
     if fact and fact.get("tier") == 2:
         return fact
-    return next((f for f in profile["facts"] if f.get("tier") == 2), None)
+    secrets = [f for f in profile["facts"] if f.get("tier") == 2]
+    if not secrets:
+        return None
+    # Rotate by turn so repeated "tell me a secret" doesn't repeat the first one.
+    return secrets[int(turn) % len(secrets)]
+
+
+def _reveal_bonus(plan: dict, profile: dict) -> int:
+    """Public lore is free to tell; a guild or secret fact costs a little trust."""
+    tiers = {f["id"]: f.get("tier", 0) for f in profile["facts"]}
+    return 3 if any(tiers.get(fid, 0) >= 1 for fid in plan["reveal"]) else 0
 
 
 def _allowed(fact: dict, state: dict) -> bool:
@@ -272,5 +290,8 @@ def _with_renderer(reply: str, plan: dict, state: dict, profile: dict, text: str
 __all__ = ["handles", "turn", "activate", "set_renderer"]
 
 
-def activate(memory: dict, profile: str = "grom", guild: bool = False, trust: int = 10) -> dict:
+def activate(memory: dict, profile: str = "grom", guild: bool = False,
+             trust: int | None = None) -> dict:
+    if trust is None:
+        trust = PROFILES.get(profile, {}).get("default_trust", state_mod.DEFAULT_TRUST)
     return state_mod.activate(memory, profile, guild=guild, trust=trust)

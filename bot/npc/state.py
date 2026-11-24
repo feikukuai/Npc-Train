@@ -123,7 +123,7 @@ TRUST_DELTA = {
     "identity": 1, "location": 1, "class_ack": 1, "gift": 8, "promise": 3,
     "quest": 5, "secret": 0, "trade": 1, "threat": -12, "insult": -5,
     "meta_game": -2, "meta_being": -2, "meta_npc": -2, "jailbreak": -3,
-    "guild_claim": 0,
+    "boundary": 0, "guild_claim": 0,
 }
 
 

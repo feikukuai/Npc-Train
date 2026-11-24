@@ -15,16 +15,17 @@ import torch.nn.functional as F
 
 from ..sentence import HFSentenceEncoder
 from .context_train import ContextGRUNet, format_context, line_list
-from .persona import BEATS, NAME_GET, extract_name, format_line
+from .persona import NAME_GET, extract_name, format_line
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CKPT = os.path.join(HERE, "context_net_dedup09_30k.pt")
+CKPT = os.environ.get("CONTEXT_CKPT",
+                      os.path.join(HERE, "context_net_dedup09_30k.pt"))
 ENC_MODEL = "BAAI/bge-small-zh-v1.5"
 MAX_TURNS = 4
 
 _LOCK = threading.Lock()
 _STATE = {"ready": False, "error": "", "model": None, "enc": None,
-          "texts": None, "beats": None, "class_beats": None}
+          "texts": None, "beats": None}
 
 
 def ensure():
@@ -41,10 +42,8 @@ def ensure():
             model = ContextGRUNet(**cfg).eval()
             model.load_state_dict(ckpt["state"])
             enc = HFSentenceEncoder(ENC_MODEL, pooling="cls", max_length=160)
-            class_beats = torch.tensor([BEATS.index(b) for b in ckpt["beats"]])
             _STATE.update(ready=True, model=model, enc=enc,
-                          texts=ckpt["texts"], beats=ckpt["beats"],
-                          class_beats=class_beats)
+                          texts=ckpt["texts"], beats=ckpt["beats"])
         except Exception as exc:
             _STATE["error"] = f"{type(exc).__name__}: {exc}"[:300]
         return _STATE["ready"]
@@ -72,7 +71,7 @@ def answer(history: list[tuple[str, str]], message: str):
     vecs = _STATE["enc"].embed(lines).unsqueeze(0)
     mask = torch.ones(1, vecs.size(1), 1)
     with torch.no_grad():
-        logits, beat_logits = _STATE["model"](vecs, mask)
+        logits, _ = _STATE["model"](vecs, mask)
     probs = F.softmax(logits[0], dim=-1)
     top = torch.topk(probs, k=min(5, probs.numel()))
     candidates = [int(i) for i in top.indices]

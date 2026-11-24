@@ -33,7 +33,6 @@ ATOMS = os.path.join(HERE, "atoms_zh.json")
 CKPT = os.path.join(HERE, "context_net.pt")
 REPORT = os.path.join(HERE, "context_report.json")
 ENC_MODEL = "BAAI/bge-small-zh-v1.5"
-FACT_BEATS = {"personal", "lore", "secret", "boundary", "threat"}
 
 
 def atom_beats() -> dict[str, str]:
@@ -118,9 +117,6 @@ def make_samples(bank, texts, beats, bank_map, count: int, seed: int,
     bank_candidates: dict[str, list[int]] = {}
     for idx, gid in bank_map.items():
         bank_candidates.setdefault(bank.beats[idx], []).append(idx)
-    by_beat: dict[str, list[int]] = {}
-    for gid, beat in enumerate(beats):
-        by_beat.setdefault(beat, []).append(gid)
 
     rng = random.Random(seed)
     samples = []
@@ -342,6 +338,10 @@ def main() -> int:
     parser.add_argument("--clip", type=float, default=1.0)
     parser.add_argument("--label-smoothing", type=float, default=0.0)
     parser.add_argument("--dedup-threshold", type=float, default=0.0)
+    parser.add_argument("--init", default=None,
+                        help="从已有 checkpoint 继续训练（教师-学生回流）")
+    parser.add_argument("--extra", default=None,
+                        help="额外的 DAgger JSONL（context/target/beat）")
     parser.add_argument("--table-size", type=int, default=1000)
     parser.add_argument("--context-turns", type=int, default=4)
     parser.add_argument("--max-length", type=int, default=160)
@@ -369,7 +369,20 @@ def main() -> int:
                                               args.dedup_threshold)
         train_raw = [(c, mapping[g], b) for c, g, b in train_raw]
         eval_raw = [(c, mapping[g], b) for c, g, b in eval_raw]
-    tag = f"{args.table_size}_{args.samples}_{args.seed}_{args.context_turns}_{args.max_length}"
+    if args.extra:
+        extra = []
+        with open(args.extra, encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                extra.append((row["context"], int(row["target"]),
+                              int(row["beat"])))
+        train_raw.extend(extra)
+        print(f"DAgger 回流 {len(extra)} 条")
+    tag = (f"{args.table_size}_{args.samples}_{args.seed}_"
+           f"{args.context_turns}_{args.max_length}"
+           f"{'_dagger' if args.extra else ''}")
     x_mask = ex_mask = None
     if args.arch == "gru":
         unique = sorted({line for row in train_raw + eval_raw
@@ -406,6 +419,13 @@ def main() -> int:
 
     model_cls = ContextGRUNet if args.arch == "gru" else TableNet
     model = model_cls(dim, args.hidden, len(texts), len(BEATS)).to(device)
+    if args.init:
+        ckpt = torch.load(args.init, map_location=device, weights_only=False)
+        if int(ckpt["config"]["n_sent"]) != len(texts):
+            raise SystemExit(f"init checkpoint has {ckpt['config']['n_sent']} "
+                             f"classes, current table has {len(texts)}")
+        model.load_state_dict(ckpt["state"])
+        print(f"继续训练：{os.path.basename(args.init)}")
     params = sum(p.numel() for p in model.parameters())
     print(f"模型参数 {params/1e6:.2f}M，输出 {len(texts)} 类，架构 {args.arch}")
 

@@ -6,6 +6,8 @@ expertnet/zh/context_lines_*.npz
 expertnet/zh/context_train_*.npz
 expertnet/zh/context_eval_*.npz
 expertnet/zh/context_report*.json
+expertnet/zh/dagger.jsonl
+expertnet/zh/exhaustive.jsonl
 expertnet/checkpoint.pt
 expertnet/metrics.json
 expertnet/ablation.json

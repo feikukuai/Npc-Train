@@ -14,6 +14,7 @@
 - 基础训练：7200 回合，HELDOUT 整句命中约 **0.767**，beat 约 0.809，思考标签 0.919。
 - 长对话对抗训练：固定长对话整句命中 **0.815 → 0.889**，行为 0.889 → 0.898；
   held-out 基本持平（0.769 → 0.771）。
+- 名字专项：raw name atom **0.688 → 0.885**，部署 0.702 → 0.701（见 `name_train.py`）。
 - 部署：ModelScope 创空间 `feihukuai/PyBot-ZH`，入口 `app.py`。
 - GitHub：`https://github.com/feikukuai/Npc-Train`。
 
@@ -40,11 +41,14 @@ $env:PYTHONPATH=(Get-Location).Path
 | 路径 | 作用 |
 |---|---|
 | `app.py` | 创空间入口，单人 Gradio 界面 |
-| `expertnet/zh/persona.py` | 阿禾的事实、台词、老师逻辑、34 维状态向量 |
+| `expertnet/zh/persona.py` | 阿禾的事实、台词、老师逻辑、37 维状态向量 |
 | `expertnet/zh/corpus.py` | 训练说法 `SEEDS` 与独立测试说法 `HELDOUT` |
 | `expertnet/zh/train.py` | 基础训练、评估、上下文脚本、权重导出 |
 | `expertnet/zh/adversary.py` | Attacker / Auditor，长对话生成与失败挖掘 |
 | `expertnet/zh/adversarial.py` | 对抗训练主循环、接受/回滚、日志 |
+| `expertnet/zh/name_train.py` | 名字记忆专项课程（设名→干扰→追问） |
+| `expertnet/zh/scaling.py` | 500/5k/50k 长链缩放实验 |
+| `expertnet/zh/scaling_eval.py` | 缩放变体的固定测试评分 |
 | `expertnet/zh/long_suite.py` | 固定长对话测试集（禁止训练） |
 | `expertnet/zh/chat.py` | 无界面部署核心：模型加载、句库选择、安全掩码 |
 | `expertnet/atoms.py` | 通用 AtomNet 与训练/评估函数，中英文共用 |
@@ -230,9 +234,9 @@ python tools/chat_web.py --lang zh --port 7861
 正收益转为 50,000 的明显负收益，只有思考标签继续升。详见 `SCALING.md`。
 变体权重 `atoms_zh_scale*.pt` 与报告被 gitignore，**不要替换主模型**。
 
-1. `name` 类别约 0.50：“你记得我的名字吗”仍会被当成“你叫什么名字”。
-   部署时 `name_*` 走规则，所以页面可用；要让学生模型自己学会，需要更多
-   “先设名、隔几轮再问”的长前缀样本并重训。
+1. ~~`name` 类别约 0.50~~：已用 `expertnet/zh/name_train.py` 的“设名→干扰→追问”课程
+   提升到 **0.885**；总体 raw atom 下降约 0.012，部署层 0.702 → 0.701。
+   后续若要继续优化，优先加不同间隔/不同干扰类型，而不是继续加量。
 2. “回见”是 HELDOUT 说法，学生没见过；这是词表泛化问题，不是上下文问题。
    可以扩 `SEEDS`，但要同步换新的 HELDOUT 说法。
 3. 句库只有 84 句，老师是天花板；继续对抗只能改善路由，不会增加知识。

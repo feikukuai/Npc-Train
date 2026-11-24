@@ -19,9 +19,11 @@ from .exhaustive import PLACE, SUBJ
 from .persona import NAME_GET, extract_name, format_line
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))
+LOCAL_ENC = os.path.join(ROOT, "models", "bge-small-zh-v1.5")
+ENC_MODEL = LOCAL_ENC if os.path.isdir(LOCAL_ENC) else "BAAI/bge-small-zh-v1.5"
 CKPT = os.environ.get("CONTEXT_CKPT",
                       os.path.join(HERE, "context_net_dedup09_30k.pt"))
-ENC_MODEL = "BAAI/bge-small-zh-v1.5"
 MAX_TURNS = 4
 
 _LOCK = threading.Lock()

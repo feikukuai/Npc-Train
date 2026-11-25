@@ -16,6 +16,8 @@ import torch.nn.functional as F
 from ..sentence import HFSentenceEncoder
 from .context_train import ContextGRUNet, format_context, line_list
 from .exhaustive import PLACE, SUBJ
+from .factorized_train import (FIELDS, PATTERN_NAMES, PATTERN_TEMPLATE,
+                               TEMPLATE_KEY, VOCAB, FactorizedNet)
 from .persona import NAME_GET, extract_name, format_line
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -24,11 +26,14 @@ LOCAL_ENC = os.path.join(ROOT, "models", "bge-small-zh-v1.5")
 ENC_MODEL = LOCAL_ENC if os.path.isdir(LOCAL_ENC) else "BAAI/bge-small-zh-v1.5"
 CKPT = os.environ.get("CONTEXT_CKPT",
                       os.path.join(HERE, "context_net_dedup09_30k.pt"))
+FACTORIZED_CKPT = os.environ.get("FACTORIZED_CKPT",
+                                 os.path.join(HERE, "factorized_deploy.pt"))
+BACKEND = os.environ.get("CHAT_BACKEND", "cluster").lower()
 MAX_TURNS = 4
 
 _LOCK = threading.Lock()
-_STATE = {"ready": False, "error": "", "model": None, "enc": None,
-          "texts": None, "beats": None}
+_STATE = {"ready": False, "error": "", "backend": None, "model": None,
+          "enc": None, "texts": None, "beats": None, "fixed_texts": None}
 
 
 def ensure():
@@ -36,16 +41,21 @@ def ensure():
         if _STATE["ready"] or _STATE["error"]:
             return _STATE["ready"]
         try:
-            try:
-                ckpt = torch.load(CKPT, map_location="cpu", weights_only=False)
-            except TypeError:
-                ckpt = torch.load(CKPT, map_location="cpu")
+            enc = HFSentenceEncoder(ENC_MODEL, pooling="cls", max_length=160)
+            if BACKEND == "factorized" and os.path.exists(FACTORIZED_CKPT):
+                ckpt = torch.load(FACTORIZED_CKPT, map_location="cpu",
+                                  weights_only=False)
+                model = FactorizedNet(**ckpt["config"]).eval()
+                model.load_state_dict(ckpt["state"])
+                _STATE.update(ready=True, backend="factorized", model=model,
+                              enc=enc, fixed_texts=ckpt["fixed_texts"])
+                return True
+            ckpt = torch.load(CKPT, map_location="cpu", weights_only=False)
             cfg = dict(ckpt["config"])
             cfg.pop("arch", None)
             model = ContextGRUNet(**cfg).eval()
             model.load_state_dict(ckpt["state"])
-            enc = HFSentenceEncoder(ENC_MODEL, pooling="cls", max_length=160)
-            _STATE.update(ready=True, model=model, enc=enc,
+            _STATE.update(ready=True, backend="cluster", model=model, enc=enc,
                           texts=ckpt["texts"], beats=ckpt["beats"])
         except Exception as exc:
             _STATE["error"] = f"{type(exc).__name__}: {exc}"[:300]
@@ -66,7 +76,7 @@ def _clash(a: str, b: str) -> bool:
                for x, y in CONFLICTS)
 
 
-def answer(history: list[tuple[str, str]], message: str):
+def _answer_cluster(history: list[tuple[str, str]], message: str):
     if not ensure():
         return "模型未就绪：" + _STATE["error"], "", []
     context = format_context(history, message, MAX_TURNS)
@@ -146,6 +156,49 @@ def answer(history: list[tuple[str, str]], message: str):
     return reply, status, [beat, others]
 
 
+def _name_and_last(history, message):
+    name = extract_name(message)
+    for player, _ in reversed(history):
+        if name:
+            break
+        name = extract_name(player)
+    last = history[-1][0] if history else ""
+    return name, last
+
+
+def _answer_factorized(history: list[tuple[str, str]], message: str):
+    context = format_context(history, message, MAX_TURNS)
+    vec = _STATE["enc"].embed([context])
+    with torch.no_grad():
+        out = _STATE["model"](vec)
+    mode = int(out["mode"][0].argmax())
+    confidence = float(F.softmax(out["mode"], dim=-1)[0, mode])
+    name, last = _name_and_last(history, message)
+    if mode == 1:
+        text = _STATE["fixed_texts"][int(out["fixed"][0].argmax())]
+        if ("{player_name}" in text and not name) \
+                or ("{last_player}" in text and not last):
+            text = next((item for item in _STATE["fixed_texts"]
+                         if "{player_name}" not in item
+                         and "{last_player}" not in item), "我没听明白。")
+        reply = format_line(text, {"player_name": name, "last_player": last})
+        return reply, f"因子化 · 固定句 · 置信 {confidence:.2f}", ["固定句", ""]
+
+    pattern = PATTERN_NAMES[int(out["pattern"][0].argmax())]
+    values = {TEMPLATE_KEY[field]: VOCAB[field][int(out[field][0].argmax())]
+              for field in FIELDS[pattern]}
+    reply = PATTERN_TEMPLATE[pattern].format(**values)
+    return reply, f"因子化 · {pattern} · 置信 {confidence:.2f}", [pattern, ""]
+
+
+def answer(history: list[tuple[str, str]], message: str):
+    if not ensure():
+        return "模型未就绪：" + _STATE["error"], "", []
+    if _STATE["backend"] == "factorized":
+        return _answer_factorized(history, message)
+    return _answer_cluster(history, message)
+
+
 def chat(message, history, session):
     text = (message or "").strip()
     history = list(history or [])
@@ -157,7 +210,7 @@ def chat(message, history, session):
     history.append({"role": "assistant", "content": reply})
     session.append((text, reply))
     del session[:-8]
-    if info:
+    if info and len(info) > 1 and info[1]:
         status += f" · 次选：{info[1]}"
     return history, session, status, ""
 

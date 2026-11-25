@@ -186,9 +186,18 @@ def _fixed_pool(beat: str) -> list[int]:
     return pools.get(beat, [])
 
 
+ROTATE_PREFIX = ("greeting", "farewell", "smalltalk", "thanks", "compliment",
+                 "insult", "taunt", "apology", "fallback", "out_of_world")
+
+
 def _pick_fixed(beat: str, message: str, name: str, last: str,
                 recent: set[str], fallback: int) -> int:
-    """在同一 beat 的固定句里挑一句：语义最贴近玩家这句话，且避开最近说过。"""
+    """优先用模型自己选的那句；只有在“同类说法都成立”的 beat 里才换一句。
+
+    之前用 BGE 相似度重排会把“你的名字是什么”改成“我娘叫阿棠”——
+    句向量对“你的/我的”不敏感，模型头的判断反而更可靠。事实/记忆类
+    绝不轮换，否则会答错事实或引用错上一句。
+    """
     ids = _fixed_pool(beat)
     valid = []
     for i in ids:
@@ -200,19 +209,28 @@ def _pick_fixed(beat: str, message: str, name: str, last: str,
         valid.append(i)
     if not valid:
         return fallback
+    # 事实类：问“谁/名字”时优先对应的事实句，避免“你的/我的”混线。
+    if beat == "personal":
+        if "娘" in message and any(k in message for k in
+                                   ("名字", "叫", "谁", "问你娘")):
+            hit = [i for i in valid if "我娘叫阿棠" in _STATE["fixed_texts"][i]]
+            if hit:
+                return hit[0]
+        if any(k in message for k in ("你的名字", "你叫什么", "你是谁",
+                                     "你叫啥", "你名字")):
+            hit = [i for i in valid if "我叫阿禾" in _STATE["fixed_texts"][i]]
+            if hit:
+                return hit[0]
+    if fallback in valid and (_STATE["fixed_texts"][fallback] not in recent
+                              or not beat.startswith(ROTATE_PREFIX)):
+        return fallback
+    fresh = [i for i in valid if _STATE["fixed_texts"][i] not in recent]
+    pool = fresh or valid
     vec = _STATE["enc"].embed([message])[0]
-    table = _STATE["enc"].embed([_STATE["fixed_texts"][i] for i in valid])
+    table = _STATE["enc"].embed([_STATE["fixed_texts"][i] for i in pool])
     sims = (table @ vec).tolist()
-    order = sorted(range(len(valid)), key=lambda j: (-sims[j], valid[j]))
-    best = valid[order[0]]
-    if _STATE["fixed_texts"][best] in recent:
-        for j in order[1:]:
-            if _STATE["fixed_texts"][valid[j]] not in recent:
-                # 只在这个候选几乎同样贴合时才换，避免把“我娘叫阿棠”换掉。
-                if sims[order[0]] - sims[j] < 0.05:
-                    return valid[j]
-                break
-    return best
+    order = sorted(range(len(pool)), key=lambda j: (-sims[j], pool[j]))
+    return pool[order[0]]
 
 
 def _answer_factorized(history: list[tuple[str, str]], message: str):

@@ -28,7 +28,7 @@ CKPT = os.environ.get("CONTEXT_CKPT",
                       os.path.join(HERE, "context_net_dedup09_30k.pt"))
 FACTORIZED_CKPT = os.environ.get("FACTORIZED_CKPT",
                                  os.path.join(HERE, "factorized_deploy.pt"))
-BACKEND = os.environ.get("CHAT_BACKEND", "cluster").lower()
+BACKEND = os.environ.get("CHAT_BACKEND", "factorized").lower()
 MAX_TURNS = 4
 
 _LOCK = threading.Lock()
@@ -167,7 +167,8 @@ def _name_and_last(history, message):
 
 
 def _answer_factorized(history: list[tuple[str, str]], message: str):
-    context = format_context(history, message, MAX_TURNS)
+    # 训练时首轮就是裸问题，只有带历史时才加“玩家/阿禾”前缀。
+    context = format_context(history, message, MAX_TURNS) if history else message
     vec = _STATE["enc"].embed([context])
     with torch.no_grad():
         out = _STATE["model"](vec)

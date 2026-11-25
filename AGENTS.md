@@ -5,6 +5,17 @@
 
 ## 0. 当前状态（2026-11）
 
+> **2026-11-25 主线已切到因子化模型**：`expertnet/zh/factorized_train.py` 训练、
+> `context_app.py` 默认 `CHAT_BACKEND=factorized`，3337 语义簇只作紧急回退。
+> - 输出表：`exhaustive.py --fixed-bank 24` → 330,442 句（712 固定句 + 组合句）。
+> - 架构：BGE 逐行编码 → GRU 读上下文；另一路只读最后一句，推理时两路 logits 相加。
+> - 训练：12 万教师对话（真实说法直接监督固定句）+ 10.8 万合成槽位问句；
+>   留存换说法的行为准确率 **0.67**，模式 0.99，合成组合整句 0.995。
+> - 推理：先定 beat，再在同 beat 固定句里按 BGE 语义相似度挑一句；近 8 轮重复 2/100。
+> - 复现：`python -m expertnet.zh.exhaustive --out expertnet/zh/exhaustive.jsonl --fixed-bank 24`
+>   然后 `python -m expertnet.zh.factorized_train --device cuda --samples 120000 --row-limit 120000`。
+> - 局限：说话人没给名字时问“还记得我吗”会走到 memory_quote；口语换说法覆盖率仍靠 seed。
+
 - 角色：**阿禾**，五岁半，村口药铺家的孩子。只认识药铺、药园、老井、橘猫阿团和娘。
 - 输出：规则老师先定 **beat**，再从 **191,600 句**整句库里按上下文挑一句；
   不再是 86 句固定台词，也不是逐字生成。

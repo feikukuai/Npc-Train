@@ -16,8 +16,9 @@ import torch.nn.functional as F
 from ..sentence import HFSentenceEncoder
 from .context_train import ContextGRUNet, format_context, line_list
 from .exhaustive import PLACE, SUBJ
-from .factorized_train import (FIELDS, PATTERN_NAMES, PATTERN_TEMPLATE,
-                               TEMPLATE_KEY, VOCAB, FactorizedNet)
+from .factorized_train import (FIELDS, MAX_LINES, PATTERN_NAMES,
+                               PATTERN_TEMPLATE, TEMPLATE_KEY, VOCAB,
+                               FactorizedNet)
 from .persona import NAME_GET, extract_name, format_line
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -33,7 +34,8 @@ MAX_TURNS = 4
 
 _LOCK = threading.Lock()
 _STATE = {"ready": False, "error": "", "backend": None, "model": None,
-          "enc": None, "texts": None, "beats": None, "fixed_texts": None}
+          "enc": None, "texts": None, "beats": None, "fixed_texts": None,
+          "fixed_beats": None}
 
 
 def ensure():
@@ -48,7 +50,8 @@ def ensure():
                 model = FactorizedNet(**ckpt["config"]).eval()
                 model.load_state_dict(ckpt["state"])
                 _STATE.update(ready=True, backend="factorized", model=model,
-                              enc=enc, fixed_texts=ckpt["fixed_texts"])
+                              enc=enc, fixed_texts=ckpt["fixed_texts"],
+                              fixed_beats=ckpt.get("fixed_beats"))
                 return True
             ckpt = torch.load(CKPT, map_location="cpu", weights_only=False)
             cfg = dict(ckpt["config"])
@@ -166,24 +169,75 @@ def _name_and_last(history, message):
     return name, last
 
 
+def _fixed_pool(beat: str) -> list[int]:
+    pools = _STATE.get("fixed_pool")
+    if pools is None:
+        pools = {}
+        for i, item in enumerate(_STATE["fixed_beats"] or []):
+            pools.setdefault(item, []).append(i)
+        _STATE["fixed_pool"] = pools
+    return pools.get(beat, [])
+
+
+def _pick_fixed(beat: str, message: str, name: str, last: str,
+                recent: set[str], fallback: int) -> int:
+    """在同一 beat 的固定句里挑一句：语义最贴近玩家这句话，且避开最近说过。"""
+    ids = _fixed_pool(beat)
+    valid = []
+    for i in ids:
+        text = _STATE["fixed_texts"][i]
+        if "{player_name}" in text and not name:
+            continue
+        if "{last_player}" in text and not last:
+            continue
+        valid.append(i)
+    if not valid:
+        return fallback
+    vec = _STATE["enc"].embed([message])[0]
+    table = _STATE["enc"].embed([_STATE["fixed_texts"][i] for i in valid])
+    sims = (table @ vec).tolist()
+    order = sorted(range(len(valid)), key=lambda j: (-sims[j], valid[j]))
+    best = valid[order[0]]
+    if _STATE["fixed_texts"][best] in recent:
+        for j in order[1:]:
+            if _STATE["fixed_texts"][valid[j]] not in recent:
+                # 只在这个候选几乎同样贴合时才换，避免把“我娘叫阿棠”换掉。
+                if sims[order[0]] - sims[j] < 0.05:
+                    return valid[j]
+                break
+    return best
+
+
 def _answer_factorized(history: list[tuple[str, str]], message: str):
-    # 训练时首轮就是裸问题，只有带历史时才加“玩家/阿禾”前缀。
-    context = format_context(history, message, MAX_TURNS) if history else message
-    vec = _STATE["enc"].embed([context])
+    # 逐行编码：最后一句玩家话不会被长历史淹没。
+    lines = []
+    for prev_player, prev_reply in history[-MAX_TURNS:]:
+        lines.append(f"玩家：{prev_player}")
+        lines.append(f"阿禾：{prev_reply}")
+    lines.append(f"玩家：{message}")
+    lines = lines[-MAX_LINES:]
+    vec = _STATE["enc"].embed(lines).unsqueeze(0)
+    lengths = torch.tensor([len(lines)])
     with torch.no_grad():
-        out = _STATE["model"](vec)
+        raw = _STATE["model"](vec, lengths)
+    out = {key: raw[key] + raw[key + "_local"]
+           for key in ["mode", "fixed", "pattern", *VOCAB]}
     mode = int(out["mode"][0].argmax())
     confidence = float(F.softmax(out["mode"], dim=-1)[0, mode])
     name, last = _name_and_last(history, message)
     if mode == 1:
-        text = _STATE["fixed_texts"][int(out["fixed"][0].argmax())]
+        best = int(out["fixed"][0].argmax())
+        beat = (_STATE["fixed_beats"][best]
+                if _STATE.get("fixed_beats") else "固定句")
+        recent = {reply for _, reply in history[-8:]}
+        idx = _pick_fixed(beat, message, name, last, recent, best)
+        text = _STATE["fixed_texts"][idx]
         if ("{player_name}" in text and not name) \
                 or ("{last_player}" in text and not last):
             text = next((item for item in _STATE["fixed_texts"]
-                         if "{player_name}" not in item
-                         and "{last_player}" not in item), "我没听明白。")
+                         if "{" not in item), "我没听明白。")
         reply = format_line(text, {"player_name": name, "last_player": last})
-        return reply, f"因子化 · 固定句 · 置信 {confidence:.2f}", ["固定句", ""]
+        return reply, f"因子化 · {beat} · 置信 {confidence:.2f}", [beat, ""]
 
     pattern = PATTERN_NAMES[int(out["pattern"][0].argmax())]
     values = {TEMPLATE_KEY[field]: VOCAB[field][int(out[field][0].argmax())]

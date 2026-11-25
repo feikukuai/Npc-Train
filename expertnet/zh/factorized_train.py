@@ -3,7 +3,8 @@
 上下文仍由 BGE + MLP 编码；输出不是 33 万类 softmax，而是：
     mode(固定句/组合句) + pattern + subj + verb + obj + adj + place + adv
 
-目标来自当前语义簇模型（distillation），再用教师 DAgger 纠正补强。
+真实对话的监督直接落在固定句上：教师先给 beat，再从该 beat 的固定句里取
+一句。组合模式只由“显式槽位问句”合成数据监督，负责覆盖穷尽句表。
 """
 from __future__ import annotations
 
@@ -19,14 +20,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ..sentence import HFSentenceEncoder
-from .bank import get_bank
-from .context_train import build_table, cluster_table, make_samples
+from .corpus import HELDOUT, SEEDS
 from .exhaustive import (ADJ, ADV, OBJ, PATTERNS, PLACE, SUBJ, VERB,
                          DEFAULT_OUT as EXHAUSTIVE_OUT)
+from .persona import format_line, new_state, teacher_turn
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ENC_MODEL = "BAAI/bge-small-zh-v1.5"
-DEFAULT_CKPT = os.path.join(HERE, "context_net_dedup09_30k.pt")
+ROOT = os.path.dirname(os.path.dirname(HERE))
+LOCAL_ENC = os.path.join(ROOT, "models", "bge-small-zh-v1.5")
+ENC_MODEL = LOCAL_ENC if os.path.isdir(LOCAL_ENC) else "BAAI/bge-small-zh-v1.5"
 DEFAULT_MODEL = os.path.join(HERE, "factorized.pt")
 REPORT = os.path.join(HERE, "factorized_report.json")
 
@@ -122,164 +124,227 @@ def with_history(context: str, rng: random.Random) -> str:
 
 
 def load_rows(path: str, limit: int, seed: int):
-    rows, fixed = [], []
+    combos, fixed = [], []
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             row = json.loads(line)
             if row["pattern"] == "fixed":
                 fixed.append(row)
             else:
-                rows.append(row)
+                combos.append(row)
     rng = random.Random(seed)
-    rng.shuffle(rows)
-    return rows[:limit], fixed
+    rng.shuffle(combos)
+    return combos[:limit], fixed
 
 
-def encode(enc, texts, cache: str, rebuild=False):
-    if not rebuild and os.path.exists(cache):
+MAX_LINES = 12
+
+
+def split_lines(context: str, max_lines: int = MAX_LINES) -> list[str]:
+    return [line for line in context.split("\n") if line.strip()][-max_lines:]
+
+
+def line_tensor(enc, contexts, cache: str):
+    """每行单独编码，得到 [N, 12, dim] 和真实长度。"""
+    if os.path.exists(cache):
         data = np.load(cache)
-        if len(data["x"]) == len(texts):
-            return data["x"]
-    chunks = []
-    for i in range(0, len(texts), 256):
-        chunks.append(enc.embed(texts[i:i + 256]))
-        print(f"  encode {min(i + 256, len(texts))}/{len(texts)}")
-    array = torch.cat(chunks).numpy()
-    np.savez_compressed(cache, x=array)
-    return array
+        if len(data["x"]) == len(contexts):
+            return torch.tensor(data["x"]), torch.tensor(data["len"])
+    split = [split_lines(context) for context in contexts]
+    unique = sorted({line for lines in split for line in lines})
+    print(f"  唯一对话行 {len(unique)} / 上下文 {len(contexts)}", flush=True)
+    table = {line: i for i, line in enumerate(unique)}
+    vectors = enc.embed(unique, batch=256)
+    dim = vectors.shape[1]
+    x = torch.zeros(len(split), MAX_LINES, dim)
+    lengths = torch.zeros(len(split), dtype=torch.long)
+    for i, lines in enumerate(split):
+        lengths[i] = len(lines)
+        for j, line in enumerate(lines):
+            x[i, j] = vectors[table[line]]
+    np.savez(cache, x=x.numpy(), len=lengths.numpy())
+    return x, lengths
+
+
+def canonical_text(pool: list[str]) -> str:
+    """每个 beat 选一句无占位符、长度适中的台词作为训练目标。"""
+    for text in pool:
+        if "{" not in text and 5 <= len(text) <= 20:
+            return text
+    return pool[0]
+
+
+def real_samples(fixed_index: dict[str, int], canon: dict[str, str], count: int,
+                 seed: int, turns: int, heldout: bool = False):
+    """教师驱动的真实对话：标签直接是固定句 ID，不再映射到组合行。"""
+    phrases = HELDOUT if heldout else SEEDS
+    rng = random.Random(seed)
+    samples = []
+    while len(samples) < count:
+        state = new_state()
+        history: list[tuple[str, str]] = []
+        for _ in range(rng.randint(6, 12)):
+            intent = rng.choice(list(phrases))
+            player = rng.choice(phrases[intent])
+            context = format_line_context(history, player, turns)
+            tpl, beat = teacher_turn(player, state)
+            target = tpl if tpl in fixed_index else canon.get(beat)
+            if target is None or target not in fixed_index:
+                continue
+            samples.append((context, fixed_index[target], beat))
+            history.append((player, format_line(target, state)))
+            if len(samples) >= count:
+                break
+    return samples
+
+
+def format_line_context(history, player: str, turns: int) -> str:
+    parts = []
+    for prev_player, prev_reply in history[-turns:]:
+        parts.append(f"玩家：{prev_player}")
+        parts.append(f"阿禾：{prev_reply}")
+    parts.append(f"玩家：{player}")
+    return "\n".join(parts)
 
 
 class FactorizedNet(nn.Module):
-    def __init__(self, dim: int, hidden: int, n_fixed: int):
+    """逐行编码整段对话，再用 GRU 读最后状态。
+
+    整段拼成一个 BGE 句向量会把最后一句话淹没在历史里（实测 4 轮历史时
+    行为准确率从 0.68 掉到 0.14）；这里每行单独编码，历史只通过 GRU 传递。
+    """
+
+    def __init__(self, dim: int, hidden: int, n_fixed: int,
+                 max_lines: int = MAX_LINES):
         super().__init__()
-        self.trunk = nn.Sequential(
+        self.max_lines = max_lines
+        self.inp = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.Linear(dim, hidden), nn.GELU(), nn.Dropout(0.1),
-            nn.Linear(hidden, hidden), nn.GELU(),
+            nn.Linear(dim, hidden), nn.GELU(),
         )
-        self.mode = nn.Linear(hidden, 2)
-        self.fixed = nn.Linear(hidden, n_fixed)
-        self.pattern = nn.Linear(hidden, len(PATTERN_NAMES))
+        self.gru = nn.GRU(hidden, hidden // 2, batch_first=True)
+        self.trunk = nn.Sequential(
+            nn.LayerNorm(hidden // 2),
+            nn.Linear(hidden // 2, hidden // 2), nn.GELU(), nn.Dropout(0.1),
+        )
+        # 双视角：GRU 读上下文，另一路只看最后一句，推理时相加。
+        width = hidden // 2
+        self.local_trunk = nn.Sequential(
+            nn.LayerNorm(hidden),
+            nn.Linear(hidden, width), nn.GELU(),
+        )
+        self.mode = nn.Linear(width, 2)
+        self.fixed = nn.Linear(width, n_fixed)
+        self.pattern = nn.Linear(width, len(PATTERN_NAMES))
         self.heads = nn.ModuleDict({
-            name: nn.Linear(hidden, len(vocab)) for name, vocab in VOCAB.items()
+            name: nn.Linear(width, len(vocab)) for name, vocab in VOCAB.items()
+        })
+        self.local = nn.ModuleDict({
+            name: nn.Linear(width, out)
+            for name, out in [("mode", 2), ("fixed", n_fixed),
+                              ("pattern", len(PATTERN_NAMES))]
+            + [(name, len(vocab)) for name, vocab in VOCAB.items()]
         })
 
-    def forward(self, x):
-        z = self.trunk(x)
-        out = {"mode": self.mode(z), "fixed": self.fixed(z),
-               "pattern": self.pattern(z)}
+    def forward(self, x, lengths):
+        z = self.inp(x)
+        out, _ = self.gru(z)
+        idx = torch.arange(out.size(0), device=out.device)
+        last = out[idx, lengths - 1]
+        zc = self.trunk(last)
+        zl = self.local_trunk(z[idx, lengths - 1])
+        result = {"mode": self.mode(zc), "fixed": self.fixed(zc),
+                  "pattern": self.pattern(zc)}
         for name, head in self.heads.items():
-            out[name] = head(z)
-        return out
+            result[name] = head(zc)
+        for name, head in self.local.items():
+            result[name + "_local"] = head(zl)
+        return result
+
+
+def weighted_ce(logits, target, weight):
+    loss = F.cross_entropy(logits, target, reduction="none")
+    return (loss * weight).sum() / weight.sum().clamp_min(1e-6)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoint", default=DEFAULT_CKPT)
     parser.add_argument("--rows", default=EXHAUSTIVE_OUT)
-    parser.add_argument("--samples", type=int, default=20000)
-    parser.add_argument("--eval-samples", type=int, default=2000)
-    parser.add_argument("--row-limit", type=int, default=30000)
-    parser.add_argument("--synth-per-row", type=int, default=4)
+    parser.add_argument("--samples", type=int, default=120000,
+                        help="真实对话训练样本数")
+    parser.add_argument("--eval-samples", type=int, default=4000)
+    parser.add_argument("--row-limit", type=int, default=200000)
+    parser.add_argument("--synth-per-row", type=int, default=1)
+    parser.add_argument("--synth-eval-limit", type=int, default=3000)
     parser.add_argument("--history-rate", type=float, default=0.5)
-    parser.add_argument("--table-size", type=int, default=30000)
-    parser.add_argument("--dedup-threshold", type=float, default=0.9)
-    parser.add_argument("--epochs", type=int, default=8)
-    parser.add_argument("--batch", type=int, default=128)
+    parser.add_argument("--real-weight", type=float, default=2.5,
+                        help="真实对话样本的损失权重，平衡合成槽位数据")
+    parser.add_argument("--epochs", type=int, default=6)
+    parser.add_argument("--batch", type=int, default=256)
     parser.add_argument("--hidden", type=int, default=512)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=31)
-    parser.add_argument("--extra", default=None,
-                        help="教师 DAgger JSONL（context/target/beat）")
+    parser.add_argument("--device", default="cpu",
+                        help="cpu / cuda；cuda 时句向量和训练都放 GPU")
     parser.add_argument("--out", default=DEFAULT_MODEL)
+    parser.add_argument("--deploy-out", default=None,
+                        help="只保留推理所需字段的部署权重")
     args = parser.parse_args()
+    device = args.device if (args.device == "cpu" or torch.cuda.is_available()) \
+        else "cpu"
+    print(f"设备 {device}", flush=True)
 
-    bank = get_bank()
-    raw_texts, raw_beats, bank_map = build_table(args.table_size, args.seed)
-    enc = HFSentenceEncoder(ENC_MODEL, pooling="cls", max_length=160)
-    texts, beats, mapping = cluster_table(raw_texts, raw_beats, enc,
-                                          args.dedup_threshold)
-    ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-    if ckpt["config"]["n_sent"] != len(texts):
-        raise SystemExit("checkpoint / table mismatch")
-    cluster_bank_map = {bidx: mapping[ridx] for bidx, ridx in bank_map.items()}
+    combos, fixed = load_rows(args.rows, args.row_limit, args.seed)
+    fixed_texts = [row["text"] for row in fixed]
+    fixed_beats = [row.get("beat", "fixed") for row in fixed]
+    fixed_index = {text: i for i, text in enumerate(fixed_texts)}
+    by_beat: dict[str, list[str]] = {}
+    for text, beat in zip(fixed_texts, fixed_beats):
+        by_beat.setdefault(beat, []).append(text)
+    canon = {beat: canonical_text(pool) for beat, pool in by_beat.items()}
+    print(f"组合句 {len(combos)}，固定句 {len(fixed_texts)}，"
+          f"beat {len(by_beat)}", flush=True)
 
-    train_raw = make_samples(bank, texts, beats, cluster_bank_map, args.samples,
-                             args.seed, 4, heldout=False)
-    eval_raw = make_samples(bank, texts, beats, cluster_bank_map, args.eval_samples,
-                            args.seed + 1000, 4, heldout=True)
-    extra_count = 0
-    if args.extra and os.path.exists(args.extra):
-        with open(args.extra, encoding="utf-8") as fh:
-            for line in fh:
-                if not line.strip():
-                    continue
-                row = json.loads(line)
-                train_raw.append((row["context"], int(row["target"]),
-                                  int(row["beat"])))
-                extra_count += 1
-    print(f"教师回流 {extra_count} 条")
-    rows, fixed = load_rows(args.rows, args.row_limit, args.seed)
-    split = max(1, int(len(rows) * 0.9))
-    synth_train_rows, synth_eval_rows = rows[:split], rows[split:]
-    synth_train = []
+    enc = HFSentenceEncoder(ENC_MODEL, pooling="cls", max_length=160,
+                            device=device)
+    train_real = real_samples(fixed_index, canon, args.samples, args.seed, 4)
+    eval_real = real_samples(fixed_index, canon, args.eval_samples,
+                             args.seed + 1000, 4, heldout=True)
+
+    split = max(1, int(len(combos) * 0.9))
+    synth_rows, synth_eval_rows = combos[:split], combos[split:]
     rng = random.Random(args.seed + 7)
-    for row in synth_train_rows:
+    synth_train = []
+    for row in synth_rows:
         for context in slot_contexts(row)[:args.synth_per_row]:
             if args.history_rate > 0:
                 context = with_history(context, rng)
             synth_train.append((context, row))
-    synth_eval = [(slot_context(r), r) for r in synth_eval_rows]
-    print(f"组合句候选 {len(rows)}，固定句 {len(fixed)}；"
-          f"训练 {len(train_raw)} + 合成 {len(synth_train)}，"
-          f"评测 {len(eval_raw)} + 合成 {len(synth_eval)}")
+    synth_eval = [(slot_context(r), r)
+                  for r in synth_eval_rows[:args.synth_eval_limit]]
+    print(f"真实 {len(train_real)}（留存 {len(eval_real)}）+ 合成 "
+          f"{len(synth_train)}，合成评测 {len(synth_eval)}", flush=True)
 
-    fixed_texts = [row["text"] for row in fixed]
-    fixed_index = {text: i for i, text in enumerate(fixed_texts)}
-    row_texts = [row["text"] for row in rows]
-    row_x = torch.tensor(encode(enc, row_texts,
-                                os.path.join(HERE, f"factorized_rows_{args.row_limit}_{args.seed}.npz")))
-    row_x = F.normalize(row_x, dim=-1)
-    target_texts = sorted({texts[gid] for _, gid, _ in train_raw + eval_raw})
-
-    # 目标句 -> 固定句或最近的组合行
-    target_rows = {}
-    target_x = F.normalize(torch.tensor(encode(
-        enc, target_texts,
-        os.path.join(HERE, f"factorized_targets_{args.row_limit}_{args.seed}.npz"))), dim=-1)
-    nearest = []
-    for i in range(0, len(target_x), 128):
-        sims = target_x[i:i + 128] @ row_x.T
-        nearest.extend(sims.argmax(1).tolist())
-        print(f"  nearest {min(i + 128, len(target_x))}/{len(target_x)}")
-    for text, idx in zip(target_texts, nearest):
-        target_rows[text] = {"mode": 0, "row": rows[idx]}
-
-    def labels(items):
-        out = []
-        for _, gid, _ in items:
-            text = texts[gid]
-            if text in fixed_index:
-                out.append({"mode": 1, "fixed": fixed_index[text],
-                            "fixed_text": text})
-            else:
-                row = target_rows[text]["row"]
-                out.append({"mode": 0, "pattern": row["pattern"],
-                            "fixed_text": text, **row})
-        return out
-
-    train_y = labels(train_raw) + [row_label(r) for _, r in synth_train]
-    eval_y = labels(eval_raw) + [row_label(r) for _, r in synth_eval]
-    train_contexts = ([row[0] for row in train_raw]
+    tag = f"{args.samples}_{args.row_limit}_{args.synth_per_row}_{args.seed}"
+    train_contexts = ([row[0] for row in train_real]
                       + [context for context, _ in synth_train])
-    eval_contexts = ([row[0] for row in eval_raw]
+    train_x, train_len = line_tensor(
+        enc, train_contexts, os.path.join(HERE, f"fact_lines_{tag}.npz"))
+    train_x = train_x.to(device)
+    train_len = train_len.to(device)
+    eval_contexts = ([row[0] for row in eval_real]
                      + [context for context, _ in synth_eval])
-    train_x = encode(enc, train_contexts,
-                     os.path.join(HERE, f"factorized_train_x_{args.samples}_{args.seed}_{args.synth_per_row}_{args.history_rate}.npz"))
-    eval_x = encode(enc, eval_contexts,
-                    os.path.join(HERE, f"factorized_eval_x_{args.eval_samples}_{args.seed}_{args.synth_per_row}_{args.history_rate}.npz"))
-    x = torch.tensor(train_x, dtype=torch.float32)
-    ex = torch.tensor(eval_x, dtype=torch.float32)
+    eval_x, eval_len = line_tensor(
+        enc, eval_contexts, os.path.join(HERE, f"fact_lines_eval_{tag}.npz"))
+    eval_x = eval_x.to(device)
+    eval_len = eval_len.to(device)
+    train_y = ([{"mode": 1, "fixed": gid} for _, gid, _ in train_real]
+               + [row_label(row) for _, row in synth_train])
+    weight = torch.tensor([args.real_weight] * len(train_real)
+                          + [1.0] * len(synth_train), dtype=torch.float32) \
+        .to(device)
+    eval_y = ([{"mode": 1, "fixed": gid} for _, gid, _ in eval_real]
+              + [row_label(row) for _, row in synth_eval])
 
     def pack(rows_y):
         n = len(rows_y)
@@ -295,91 +360,131 @@ def main() -> int:
             for name in FIELDS[r["pattern"]]:
                 slots[name][i] = VOCAB[name].index(r[name])
                 masks[name][i] = True
-        return mode, fixed_id, pattern, slots, masks
+        return (mode.to(device), fixed_id.to(device), pattern.to(device),
+                {k: v.to(device) for k, v in slots.items()},
+                {k: v.to(device) for k, v in masks.items()})
 
     ty, tf, tp, ts, tm = pack(train_y)
     ey, ef, ep, es, em = pack(eval_y)
-    model = FactorizedNet(x.shape[1], args.hidden, len(fixed_texts))
-    print(f"模型参数 {sum(p.numel() for p in model.parameters())/1e6:.2f}M")
+    model = FactorizedNet(train_x.shape[2], args.hidden, len(fixed_texts))
+    model.to(device)
+    print(f"模型参数 {sum(p.numel() for p in model.parameters())/1e6:.2f}M",
+          flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
     for epoch in range(args.epochs):
         model.train()
-        order = torch.randperm(len(x))
+        order = torch.randperm(len(train_x), device=device)
         total = 0.0
         start = time.perf_counter()
         for step, i in enumerate(range(0, len(order), args.batch)):
             idx = order[i:i + args.batch]
-            out = model(x[idx])
-            loss = F.cross_entropy(out["mode"], ty[idx])
+            w = weight[idx]
+            out = model(train_x[idx], train_len[idx])
+            loss = (weighted_ce(out["mode"], ty[idx], w)
+                    + 0.5 * weighted_ce(out["mode_local"], ty[idx], w))
             fmask = ty[idx] == 1
             if fmask.any():
-                loss += F.cross_entropy(out["fixed"][fmask], tf[idx][fmask])
+                loss += weighted_ce(out["fixed"][fmask], tf[idx][fmask],
+                                    w[fmask])
+                loss += 0.5 * weighted_ce(out["fixed_local"][fmask],
+                                          tf[idx][fmask], w[fmask])
             pmask = ~fmask
             if pmask.any():
-                loss += F.cross_entropy(out["pattern"][pmask], tp[idx][pmask])
+                loss += weighted_ce(out["pattern"][pmask], tp[idx][pmask],
+                                    w[pmask])
+                loss += 0.5 * weighted_ce(out["pattern_local"][pmask],
+                                          tp[idx][pmask], w[pmask])
                 for name in VOCAB:
                     m = tm[name][idx] & pmask
                     if m.any():
-                        loss += F.cross_entropy(out[name][m], ts[name][idx][m])
+                        loss += weighted_ce(out[name][m], ts[name][idx][m],
+                                            w[m])
+                        loss += 0.5 * weighted_ce(out[name + "_local"][m],
+                                                  ts[name][idx][m], w[m])
             opt.zero_grad()
             loss.backward()
             opt.step()
             total += loss.item()
+            if step % 200 == 0:
+                print(f"  epoch {epoch} step {step}/{len(order)//args.batch} "
+                      f"loss {total/(step+1):.3f}", flush=True)
         model.eval()
         with torch.no_grad():
-            out = model(ex)
-        mode_acc = (out["mode"].argmax(1) == ey).float().mean().item()
-        pm = ey == 0
-        pattern_acc = ((out["pattern"].argmax(1) == ep).float()[pm].mean().item()
-                       if pm.any() else 0.0)
+            raw = model(eval_x, eval_len)
+        out = {key: raw[key] + raw[key + "_local"]
+               for key in ["mode", "fixed", "pattern", *VOCAB]}
+        n_real = len(eval_real)
+        mode_pred = out["mode"].argmax(1)
+        fixed_pred = out["fixed"].argmax(1)
+        real_mode = (mode_pred[:n_real] == 1).float().mean().item()
+        beat_acc = 0.0
+        for i, (_, gid, beat) in enumerate(eval_real):
+            if int(mode_pred[i]) != 1:
+                continue
+            beat_acc += int(fixed_beats[int(fixed_pred[i])] == beat)
+        beat_acc /= max(1, n_real)
+        synth_mode_acc = (mode_pred[n_real:] == 0).float().mean().item()
+        pattern_acc = ((out["pattern"].argmax(1)[n_real:] == ep[n_real:])
+                       .float().mean().item())
         slot_correct = slot_total = 0
         for name in VOCAB:
-            m = em[name]
+            m = em[name][n_real:]
             if m.any():
-                slot_correct += (out[name].argmax(1)[m] == es[name][m]).sum().item()
+                slot_correct += (out[name].argmax(1)[n_real:][m]
+                                 == es[name][n_real:][m]).sum().item()
                 slot_total += m.sum().item()
         slot_acc = slot_correct / max(1, slot_total)
-        print(f"epoch {epoch}: mode {mode_acc:.3f} pattern {pattern_acc:.3f} "
-              f"slot {slot_acc:.3f} loss {total/max(1,step+1):.3f} "
-              f"{time.perf_counter()-start:.1f}s")
+        exact = 0
+        for i, (context, row) in enumerate(synth_eval[:2000]):
+            pos = n_real + i
+            p = PATTERN_NAMES[int(out["pattern"][pos].argmax())]
+            vals = {TEMPLATE_KEY[name]: VOCAB[name][int(out[name][pos].argmax())]
+                    for name in FIELDS[p]}
+            exact += int(PATTERN_TEMPLATE[p].format(**vals) == row["text"])
+        synth_exact = exact / max(1, min(2000, len(synth_eval)))
+        print(f"epoch {epoch}: 真实模式 {real_mode:.3f} beat {beat_acc:.3f} | "
+              f"合成模式 {synth_mode_acc:.3f} pattern {pattern_acc:.3f} "
+              f"slot {slot_acc:.3f} exact {synth_exact:.3f} "
+              f"loss {total/max(1,step+1):.3f} "
+              f"{time.perf_counter()-start:.1f}s", flush=True)
 
-    torch.save({"state": model.state_dict(),
-                "config": {"dim": x.shape[1], "hidden": args.hidden,
-                           "n_fixed": len(fixed_texts)},
-                "fixed_texts": fixed_texts, "rows": rows}, args.out)
+    print("\n留存说法样例：", flush=True)
+    for i, (context, gid, beat) in enumerate(eval_real[:10]):
+        with torch.no_grad():
+            raw = model(eval_x[i:i + 1], eval_len[i:i + 1])
+        out = {key: raw[key] + raw[key + "_local"]
+               for key in ["mode", "fixed", "pattern", *VOCAB]}
+        mode = int(out["mode"][0].argmax())
+        if mode == 1:
+            pred = fixed_texts[int(out["fixed"][0].argmax())]
+        else:
+            p = PATTERN_NAMES[int(out["pattern"][0].argmax())]
+            vals = {TEMPLATE_KEY[name]: VOCAB[name][int(out[name][0].argmax())]
+                    for name in FIELDS[p]}
+            pred = PATTERN_TEMPLATE[p].format(**vals)
+        last = context.split("\n")[-1]
+        print(f"  {last}  ->  [{beat}] {pred}", flush=True)
 
-    syn_y = [row_label(r) for _, r in synth_eval]
-    _, _, syn_p, syn_s, syn_m = pack(syn_y)
-    syn_x = torch.tensor(encode(
-        enc, [context for context, _ in synth_eval],
-        os.path.join(HERE, f"factorized_synth_eval_{args.row_limit}_{args.seed}.npz")))
-    with torch.no_grad():
-        out_s = model(syn_x)
-    syn_pattern = (out_s["pattern"].argmax(1) == syn_p).float().mean().item()
-    correct = total = 0
-    for name in VOCAB:
-        m = syn_m[name]
-        if m.any():
-            correct += (out_s[name].argmax(1)[m] == syn_s[name][m]).sum().item()
-            total += m.sum().item()
-    syn_slot = correct / max(1, total)
-    exact = 0
-    for i, (_, row) in enumerate(synth_eval[:2000]):
-        p = PATTERN_NAMES[int(out_s["pattern"][i].argmax())]
-        vals = {TEMPLATE_KEY[name]: VOCAB[name][int(out_s[name][i].argmax())]
-                for name in FIELDS[p]}
-        exact += int(PATTERN_TEMPLATE[p].format(**vals) == row["text"])
-    syn_exact = exact / max(1, min(2000, len(synth_eval_rows)))
+    config = {"dim": train_x.shape[2], "hidden": args.hidden,
+              "n_fixed": len(fixed_texts), "max_lines": MAX_LINES}
+    torch.save({"state": model.state_dict(), "config": config,
+                "fixed_texts": fixed_texts, "fixed_beats": fixed_beats,
+                "rows": combos}, args.out)
+    if args.deploy_out:
+        torch.save({"state": model.state_dict(), "config": config,
+                    "fixed_texts": fixed_texts,
+                    "fixed_beats": fixed_beats}, args.deploy_out)
+        print(f"写出部署权重 {args.deploy_out}", flush=True)
 
-    report = {"samples": len(train_raw), "extra": extra_count,
-              "rows": len(rows), "fixed": len(fixed_texts),
-              "row_limit": args.row_limit, "synth_per_row": args.synth_per_row,
-              "hidden": args.hidden, "history_rate": args.history_rate,
-              "mode_acc": mode_acc, "pattern_acc": pattern_acc,
-              "slot_acc": slot_acc,
-              "synth_pattern": syn_pattern, "synth_slot": syn_slot,
-              "synth_exact": syn_exact}
+    report = {"samples": len(train_real), "eval_samples": len(eval_real),
+              "rows": len(combos), "fixed": len(fixed_texts),
+              "beats": len(by_beat), "row_limit": args.row_limit,
+              "synth_per_row": args.synth_per_row, "hidden": args.hidden,
+              "real_weight": args.real_weight,
+              "real_mode": real_mode, "real_beat": beat_acc,
+              "synth_mode": synth_mode_acc, "pattern_acc": pattern_acc,
+              "slot_acc": slot_acc, "synth_exact": synth_exact}
     with open(REPORT, "w", encoding="utf-8") as fh:
         json.dump(report, fh, ensure_ascii=False, indent=1)
     print(json.dumps(report, ensure_ascii=False, indent=1))

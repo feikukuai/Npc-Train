@@ -14,6 +14,7 @@ import argparse
 import itertools
 import json
 import os
+import random
 from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -88,15 +89,70 @@ def fixed_rows():
     """事实、名字、安全边界等固定句也必须锁在表里。"""
     if not os.path.exists(ATOMS):
         return
+    from .persona import FACTS, LINES
+
+    beats: dict[str, str] = {}
+    for fact in FACTS.values():
+        beats.setdefault(fact["text"], "personal")
+    for beat, lines in LINES.items():
+        for line in lines:
+            beats.setdefault(line, beat)
     with open(ATOMS, encoding="utf-8") as fh:
         atoms = json.load(fh).get("atoms", [])
+    seen = set()
     for text in atoms:
-        yield {"text": text, "pattern": "fixed", "polarity": 0}
+        seen.add(text)
+        yield {"text": text, "pattern": "fixed", "polarity": 0,
+               "beat": beats.get(text, "fixed")}
+    for text, beat in beats.items():
+        if text not in seen:
+            seen.add(text)
+            yield {"text": text, "pattern": "fixed", "polarity": 0,
+                   "beat": beat}
 
 
-def rows():
+def fixed_bank_rows(per_beat: int = 24, seed: int = 13):
+    """从整句库给每个 beat 精选一批自然台词，补进固定句。
+
+    组合句只能表达“谁对谁做什么”，问候、道歉、回忆这类社交句必须直接落在
+    句表里，否则模型只能把“你好”硬映射成“你的药很生气”。
+    """
+    if per_beat <= 0:
+        return
+    from .bank import get_bank
+
+    bank = get_bank()
+    rng = random.Random(seed)
+    for beat, ids in sorted(bank.by_beat.items()):
+        pool = [i for i in ids if 4 <= len(bank.texts[i]) <= 26]
+        rng.shuffle(pool)
+        seen, chosen = set(), []
+        # 先保证名字/回忆类有带占位符的台词。
+        for i in pool:
+            text = bank.texts[i]
+            if ("{player_name}" in text or "{last_player}" in text) \
+                    and text not in seen:
+                seen.add(text)
+                chosen.append(i)
+            if len(chosen) >= 4:
+                break
+        for i in pool:
+            if len(chosen) >= per_beat:
+                break
+            text = bank.texts[i]
+            if text in seen:
+                continue
+            seen.add(text)
+            chosen.append(i)
+        for i in chosen:
+            yield {"text": bank.texts[i], "pattern": "fixed",
+                   "polarity": 0, "beat": beat}
+
+
+def rows(fixed_bank: int = 0):
     """Yield every combination, with metadata for later factorized training."""
     yield from fixed_rows()
+    yield from fixed_bank_rows(fixed_bank)
     for pattern, template, polarity in PATTERNS:
         if pattern in ("svo", "svo_neg", "ba", "want_svo", "can_svo",
                        "like_svo", "no_svo", "le_svo"):
@@ -144,10 +200,10 @@ def rows():
                            "polarity": polarity}
 
 
-def build(limit: int = 0):
+def build(limit: int = 0, fixed_bank: int = 0):
     seen = set()
     out = []
-    for row in rows():
+    for row in rows(fixed_bank):
         if not allowed(row) or row["text"] in seen:
             continue
         seen.add(row["text"])
@@ -168,10 +224,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default=DEFAULT_OUT)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--fixed-bank", type=int, default=24,
+                        help="每个 beat 从整句库精选多少条固定台词")
     parser.add_argument("--stats", action="store_true")
     parser.add_argument("--samples", type=int, default=8)
     args = parser.parse_args()
-    entries = build(args.limit)
+    entries = build(args.limit, args.fixed_bank)
     report = stats(entries)
     if args.stats:
         print(json.dumps(report, ensure_ascii=False, indent=1))

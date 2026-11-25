@@ -36,7 +36,7 @@ class HFSentenceEncoder:
 
     def __init__(self, name: str = "sentence-transformers/all-MiniLM-L6-v2",
                  cache_dir: str | None = None, pooling: str = "mean",
-                 max_length: int = 96):
+                 max_length: int = 96, device: str = "cpu"):
         import os
 
         os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
@@ -45,6 +45,7 @@ class HFSentenceEncoder:
         self.name = name
         self.pooling = pooling
         self.max_length = max_length
+        self.device = device
         # Prefer the local cache: a hub check per process is slow and fails offline.
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -56,30 +57,34 @@ class HFSentenceEncoder:
             self.tokenizer = AutoTokenizer.from_pretrained(name, cache_dir=cache_dir)
             self.model = AutoModel.from_pretrained(name, cache_dir=cache_dir)
         self.model.eval()
+        self.model.to(device)
         for param in self.model.parameters():
             param.requires_grad_(False)
         self.dim = int(self.model.config.hidden_size)
         self._cache: dict[str, torch.Tensor] = {}
 
     @torch.no_grad()
-    def embed(self, texts: list[str]) -> torch.Tensor:
+    def embed(self, texts: list[str], batch: int = 64) -> torch.Tensor:
         todo: list[str] = []
         for text in texts:
             if text not in self._cache and text not in todo:
                 todo.append(text)
-        for i in range(0, len(todo), 64):
-            chunk = todo[i:i + 64]
-            batch = self.tokenizer(chunk, padding=True, truncation=True,
-                                   max_length=self.max_length, return_tensors="pt")
-            hidden = self.model(**batch).last_hidden_state
-            mask = batch["attention_mask"].unsqueeze(-1).to(hidden.dtype)
+        for i in range(0, len(todo), batch):
+            chunk = todo[i:i + batch]
+            encoded = self.tokenizer(chunk, padding=True, truncation=True,
+                                     max_length=self.max_length,
+                                     return_tensors="pt")
+            encoded = {key: value.to(self.device)
+                       for key, value in encoded.items()}
+            hidden = self.model(**encoded).last_hidden_state
+            mask = encoded["attention_mask"].unsqueeze(-1).to(hidden.dtype)
             if self.pooling == "cls":
                 vec = hidden[:, 0]
             else:
                 vec = (hidden * mask).sum(1) / mask.sum(1).clamp(min=1e-6)
             vec = F.normalize(vec, dim=-1)
             for text, row in zip(chunk, vec):
-                self._cache[text] = row.detach()
+                self._cache[text] = row.detach().cpu()
         return torch.stack([self._cache[text] for text in texts])
 
 

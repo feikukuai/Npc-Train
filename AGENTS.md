@@ -7,12 +7,14 @@
 
 > **2026-11-25 主线已切到因子化模型**：`expertnet/zh/factorized_train.py` 训练、
 > `context_app.py` 默认 `CHAT_BACKEND=factorized`，3337 语义簇只作紧急回退。
-> - 输出表：`exhaustive.py --fixed-bank 24` → 330,442 句（712 固定句 + 组合句）。
+> - 输出表：`exhaustive.py --fixed-bank 265` → 336,701 句（6,971 固定句 + 组合句）；
+>   26 个 beat 每个约 260 条，按长度排序后等步长抽样，覆盖不同句法框架。
 > - 架构：BGE 逐行编码 → GRU 读上下文；另一路只读最后一句，推理时两路 logits 相加。
 > - 训练：12 万教师对话（真实说法直接监督固定句）+ 10.8 万合成槽位问句；
->   留存换说法的行为准确率 **0.67**，模式 0.99，合成组合整句 0.995。
-> - 推理：先定 beat，再在同 beat 固定句里按 BGE 语义相似度挑一句；近 8 轮重复 2/100。
-> - 复现：`python -m expertnet.zh.exhaustive --out expertnet/zh/exhaustive.jsonl --fixed-bank 24`
+>   留存换说法的行为准确率 **0.68**，模式 0.99，合成组合整句 0.999。
+> - 推理：先定 beat，再在同 beat 固定句里按 BGE 语义相似度挑一句；近 8 轮重复 4/100。
+>   `warmup()` 会在后台预编码全部固定句，首句延迟从 ~2.8s 降到缓存后的 ~0.05s。
+> - 复现：`python -m expertnet.zh.exhaustive --out expertnet/zh/exhaustive.jsonl --fixed-bank 265`
 >   然后 `python -m expertnet.zh.factorized_train --device cuda --samples 120000 --row-limit 120000`。
 > - 局限：说话人没给名字时问“还记得我吗”会走到 memory_quote；口语换说法覆盖率仍靠 seed。
 

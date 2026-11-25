@@ -66,7 +66,14 @@ def ensure():
 
 
 def warmup():
-    threading.Thread(target=ensure, daemon=True).start()
+    def run():
+        if not ensure():
+            return
+        # 后台把 7000 条固定句编码好，第一句话就不必等 2–3 秒。
+        texts = _STATE.get("fixed_texts") or []
+        for i in range(0, len(texts), 256):
+            _STATE["enc"].embed(texts[i:i + 256], batch=128)
+    threading.Thread(target=run, daemon=True).start()
 
 
 CONFLICTS = [("热", "冷"), ("大", "小"), ("多", "少"), ("快", "慢"),

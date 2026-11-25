@@ -111,11 +111,12 @@ def fixed_rows():
                    "beat": beat}
 
 
-def fixed_bank_rows(per_beat: int = 24, seed: int = 13):
+def fixed_bank_rows(per_beat: int = 265, seed: int = 13):
     """从整句库给每个 beat 精选一批自然台词，补进固定句。
 
     组合句只能表达“谁对谁做什么”，问候、道歉、回忆这类社交句必须直接落在
     句表里，否则模型只能把“你好”硬映射成“你的药很生气”。
+    用固定步长横跨整个 beat，保证不同句法框架/话题都被抽到。
     """
     if per_beat <= 0:
         return
@@ -126,24 +127,33 @@ def fixed_bank_rows(per_beat: int = 24, seed: int = 13):
     for beat, ids in sorted(bank.by_beat.items()):
         pool = [i for i in ids if 4 <= len(bank.texts[i]) <= 26]
         rng.shuffle(pool)
+        pool.sort(key=lambda i: len(bank.texts[i]))
         seen, chosen = set(), []
+
+        def take(index: int) -> bool:
+            text = bank.texts[index]
+            if text in seen:
+                return False
+            seen.add(text)
+            chosen.append(index)
+            return True
+
         # 先保证名字/回忆类有带占位符的台词。
         for i in pool:
             text = bank.texts[i]
-            if ("{player_name}" in text or "{last_player}" in text) \
-                    and text not in seen:
-                seen.add(text)
-                chosen.append(i)
-            if len(chosen) >= 4:
+            if "{player_name}" in text or "{last_player}" in text:
+                take(i)
+            if len(chosen) >= min(4, per_beat):
                 break
+        step = max(1, len(pool) // max(1, per_beat))
+        for i in pool[::step]:
+            if len(chosen) >= per_beat:
+                break
+            take(i)
         for i in pool:
             if len(chosen) >= per_beat:
                 break
-            text = bank.texts[i]
-            if text in seen:
-                continue
-            seen.add(text)
-            chosen.append(i)
+            take(i)
         for i in chosen:
             yield {"text": bank.texts[i], "pattern": "fixed",
                    "polarity": 0, "beat": beat}
@@ -224,7 +234,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default=DEFAULT_OUT)
     parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--fixed-bank", type=int, default=24,
+    parser.add_argument("--fixed-bank", type=int, default=265,
                         help="每个 beat 从整句库精选多少条固定台词")
     parser.add_argument("--stats", action="store_true")
     parser.add_argument("--samples", type=int, default=8)

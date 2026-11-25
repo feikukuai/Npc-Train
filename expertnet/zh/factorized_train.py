@@ -166,12 +166,17 @@ def line_tensor(enc, contexts, cache: str):
     return x, lengths
 
 
+LEAD = set("嗯啊哦唔咦哼哎唉嘿")
+
+
 def canonical_text(pool: list[str]) -> str:
-    """每个 beat 选一句无占位符、长度适中的台词作为训练目标。"""
-    for text in pool:
-        if "{" not in text and 5 <= len(text) <= 20:
-            return text
-    return pool[0]
+    """每个 beat 选一句干净、长度适中的台词作为训练目标。"""
+    candidates = [text for text in pool if "{" not in text] or pool
+
+    def score(text: str) -> int:
+        return abs(len(text) - 10) + (4 if text[0] in LEAD else 0)
+
+    return min(candidates, key=score)
 
 
 def real_samples(fixed_index: dict[str, int], canon: dict[str, str], count: int,

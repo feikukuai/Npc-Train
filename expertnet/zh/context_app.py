@@ -258,6 +258,20 @@ def _beat_tables():
     return tables
 
 
+def _name_pick(message: str, name: str) -> int | None:
+    """名字已经记住时，问“我叫什么”必须真的说出那个名字。
+
+    决策头偶尔会把这类问句并进 memory_quote/name_unknown，选出“你还没
+    告诉我你叫什么”这种反事实回答；这里按名字事实直接锁定。
+    """
+    if not name or not any(key in message for key in NAME_GET):
+        return None
+    for i in _fixed_pool("name_recall"):
+        if "{player_name}" in _STATE["fixed_texts"][i]:
+            return i
+    return None
+
+
 def _decision_pick(beat: str, vecs, message: str, name: str, last: str,
                    recent: set[str], probs) -> int | None:
     """beat 概率 + 决策头打分做全局集成，再按上下文挑一句。"""
@@ -351,6 +365,8 @@ def _answer_factorized(history: list[tuple[str, str]], message: str):
         recent = {reply for _, reply in history[-8:]}
         idx = None
         if _STATE.get("decision") is not None:
+            idx = _name_pick(message, name)
+        if idx is None and _STATE.get("decision") is not None:
             probs = F.softmax(out["fixed"][0], dim=-1)
             idx = _decision_pick(beat, vecs, message, name, last, recent,
                                  probs)

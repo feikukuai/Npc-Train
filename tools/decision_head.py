@@ -48,8 +48,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--k", type=int, default=8)
+    parser.add_argument("--same", type=int, default=0,
+                        help="同 beat 难负例个数，0 表示随 k 自动取值")
     args = parser.parse_args()
     epochs, k = args.epochs, args.k
+    n_same = args.same or min(3 + k // 4, k - 1)
     torch.manual_seed(7)
     random.seed(7)
     _, fixed = load_rows(EX, 1, 31)
@@ -100,7 +103,7 @@ def main():
         gold = pos[row[1]]
         beat = opt_beats[gold]
         pool = [j for j in same[beat] if j != gold]
-        same_neg = rng.sample(pool, min(3, len(pool), k - 1))
+        same_neg = rng.sample(pool, min(n_same, len(pool), k - 1))
         neg = same_neg + rng.sample(others[beat], k - 1 - len(same_neg))
         choices = [gold] + neg
         rng.shuffle(choices)

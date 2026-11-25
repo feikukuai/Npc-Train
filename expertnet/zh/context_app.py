@@ -243,37 +243,52 @@ def _decision_table():
     return table
 
 
+def _beat_tables():
+    tables = _STATE.get("beat_tables")
+    if tables is not None:
+        return tables
+    beats = _STATE["fixed_beats"]
+    names = sorted(set(beats))
+    index = {b: i for i, b in enumerate(names)}
+    beat_of = torch.tensor([index[b] for b in beats])
+    mask = torch.tensor([("{" not in text)
+                         for text in _STATE["fixed_texts"]])
+    tables = (names, index, beat_of, mask)
+    _STATE["beat_tables"] = tables
+    return tables
+
+
 def _decision_pick(beat: str, vecs, message: str, name: str, last: str,
-                   recent: set[str]) -> int | None:
-    """小决策头：在预测 beat 内按“上下文 state × 候选句”打分。"""
+                   recent: set[str], probs) -> int | None:
+    """beat 概率 + 决策头打分做全局集成，再按上下文挑一句。"""
     if not _STATE.get("decision_ready"):
         return None
-    pool = []
-    for i in _fixed_pool(beat):
+    _, _, beat_of, mask = _beat_tables()
+    beat_prob = torch.zeros(int(beat_of.max()) + 1)
+    beat_prob.index_add_(0, beat_of, probs)
+    last_vec = vecs[-1]
+    hist = vecs[:-1].mean(0) if vecs.size(0) > 1 else last_vec
+    state = torch.cat([last_vec, hist])
+    dec = _decision_table() @ state
+    z = (dec - dec.mean()) / dec.std().clamp_min(1e-6)
+    score = torch.log(beat_prob[beat_of] + 1e-8) + 0.5 * z
+    score = score.masked_fill(~mask, float("-inf"))
+    if beat == "personal":
+        valid = torch.nonzero(mask).flatten().tolist()
+        hit = _fact_line(message, valid)
+        if hit is not None:
+            return hit
+    order = torch.topk(score, k=min(6, score.numel())).indices.tolist()
+    for i in order:
         text = _STATE["fixed_texts"][i]
         if "{player_name}" in text and not name:
             continue
         if "{last_player}" in text and not last:
             continue
-        pool.append(i)
-    if not pool:
-        return None
-    if beat == "personal":
-        hit = _fact_line(message, pool)
-        if hit is not None:
-            return hit
-    last_vec = vecs[-1]
-    hist = vecs[:-1].mean(0) if vecs.size(0) > 1 else last_vec
-    state = torch.cat([last_vec, hist])
-    table = _decision_table()
-    scores = table[torch.tensor(pool)] @ state
-    order = torch.argsort(scores, descending=True).tolist()
-    if not beat.startswith(ROTATE_PREFIX):
-        return pool[order[0]]
-    for j in order[:3]:
-        if _STATE["fixed_texts"][pool[j]] not in recent:
-            return pool[j]
-    return pool[order[0]]
+        if text in recent and _STATE["fixed_beats"][i].startswith(ROTATE_PREFIX):
+            continue
+        return i
+    return order[0] if order else None
 
 
 def _pick_fixed(beat: str, message: str, name: str, last: str,
@@ -336,7 +351,9 @@ def _answer_factorized(history: list[tuple[str, str]], message: str):
         recent = {reply for _, reply in history[-8:]}
         idx = None
         if _STATE.get("decision") is not None:
-            idx = _decision_pick(beat, vecs, message, name, last, recent)
+            probs = F.softmax(out["fixed"][0], dim=-1)
+            idx = _decision_pick(beat, vecs, message, name, last, recent,
+                                 probs)
         if idx is None:
             idx = _pick_fixed(beat, message, name, last, recent, best)
         text = _STATE["fixed_texts"][idx]

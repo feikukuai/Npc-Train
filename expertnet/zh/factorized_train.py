@@ -61,6 +61,34 @@ TEMPLATE_KEY = {"subj": "s", "verb": "v", "obj": "o",
 PATTERN_NAMES = [row[0] for row in PATTERNS]
 PATTERN_TEMPLATE = {row[0]: row[1] for row in PATTERNS}
 
+# 计划头：先判断“这一轮在干什么”，再选具体台词，帮助多轮一致性。
+PLAN_NAMES = ["social", "warm", "repair", "conflict", "chat", "fact",
+              "name", "memory", "secret", "exchange", "meta"]
+PLAN_OF_BEAT = {
+    "greeting": "social", "greeting_again": "social",
+    "greeting_hurt": "social", "farewell": "social",
+    "farewell_hurt": "social",
+    "thanks": "warm", "compliment": "warm",
+    "apology": "repair", "apology_meta": "repair",
+    "insult": "conflict", "taunt": "conflict", "threat": "conflict",
+    "boundary": "conflict",
+    "smalltalk_how": "chat", "smalltalk_weather": "chat",
+    "smalltalk_bored": "chat", "smalltalk_joke": "chat",
+    "fallback": "chat",
+    "personal": "fact", "lore": "fact",
+    "name_saved": "name", "name_recall": "name", "name_unknown": "name",
+    "memory_recall": "memory", "memory_hurt": "memory",
+    "memory_quote": "memory", "memory_repeat": "memory",
+    "memory_first": "memory", "memory_name": "memory",
+    "secret_denied": "secret",
+    "trade": "exchange", "gift": "exchange", "promise": "exchange",
+    "meta": "meta", "out_of_world": "meta", "fixed": "meta",
+}
+
+
+def plan_of(beat: str) -> int:
+    return PLAN_NAMES.index(PLAN_OF_BEAT.get(beat, "meta"))
+
 
 def slot_context(row: dict) -> str:
     """用行元数据造一个“已知槽位”的问题，给因子化头干净的监督。"""
@@ -265,13 +293,15 @@ class FactorizedNet(nn.Module):
         self.mode = nn.Linear(width, 2)
         self.fixed = nn.Linear(width, n_fixed)
         self.pattern = nn.Linear(width, len(PATTERN_NAMES))
+        self.plan = nn.Linear(width, len(PLAN_NAMES))
         self.heads = nn.ModuleDict({
             name: nn.Linear(width, len(vocab)) for name, vocab in VOCAB.items()
         })
         self.local = nn.ModuleDict({
             name: nn.Linear(width, out)
             for name, out in [("mode", 2), ("fixed", n_fixed),
-                              ("pattern", len(PATTERN_NAMES))]
+                              ("pattern", len(PATTERN_NAMES)),
+                              ("plan", len(PLAN_NAMES))]
             + [(name, len(vocab)) for name, vocab in VOCAB.items()]
         })
 
@@ -283,7 +313,7 @@ class FactorizedNet(nn.Module):
         zc = self.trunk(last)
         zl = self.local_trunk(z[idx, lengths - 1])
         result = {"mode": self.mode(zc), "fixed": self.fixed(zc),
-                  "pattern": self.pattern(zc)}
+                  "pattern": self.pattern(zc), "plan": self.plan(zc)}
         for name, head in self.heads.items():
             result[name] = head(zc)
         for name, head in self.local.items():
@@ -371,18 +401,21 @@ def main() -> int:
         enc, eval_contexts, os.path.join(HERE, f"fact_lines_eval_{tag}.npz"))
     eval_x = eval_x.to(device)
     eval_len = eval_len.to(device)
-    train_y = ([{"mode": 1, "fixed": gid} for _, gid, _ in train_real]
+    train_y = ([{"mode": 1, "fixed": gid, "plan": plan_of(beat)}
+                for _, gid, beat in train_real]
                + [row_label(row) for _, row in synth_train])
     weight = torch.tensor([args.real_weight] * len(train_real)
                           + [1.0] * len(synth_train), dtype=torch.float32) \
         .to(device)
-    eval_y = ([{"mode": 1, "fixed": gid} for _, gid, _ in eval_real]
+    eval_y = ([{"mode": 1, "fixed": gid, "plan": plan_of(beat)}
+               for _, gid, beat in eval_real]
               + [row_label(row) for _, row in synth_eval])
 
     def pack(rows_y):
         n = len(rows_y)
         mode = torch.tensor([r["mode"] for r in rows_y])
         fixed_id = torch.tensor([r.get("fixed", 0) for r in rows_y])
+        plan = torch.tensor([r.get("plan", -100) for r in rows_y])
         pattern = torch.tensor([PATTERN_NAMES.index(r["pattern"])
                                 if r["mode"] == 0 else 0 for r in rows_y])
         slots = {name: torch.zeros(n, dtype=torch.long) for name in VOCAB}
@@ -394,11 +427,12 @@ def main() -> int:
                 slots[name][i] = VOCAB[name].index(r[name])
                 masks[name][i] = True
         return (mode.to(device), fixed_id.to(device), pattern.to(device),
+                plan.to(device),
                 {k: v.to(device) for k, v in slots.items()},
                 {k: v.to(device) for k, v in masks.items()})
 
-    ty, tf, tp, ts, tm = pack(train_y)
-    ey, ef, ep, es, em = pack(eval_y)
+    ty, tf, tp, tplan, ts, tm = pack(train_y)
+    ey, ef, ep, eplan, es, em = pack(eval_y)
     model = FactorizedNet(train_x.shape[2], args.hidden, len(fixed_texts))
     model.to(device)
     print(f"模型参数 {sum(p.numel() for p in model.parameters())/1e6:.2f}M",
@@ -422,6 +456,12 @@ def main() -> int:
                                     w[fmask])
                 loss += 0.5 * weighted_ce(out["fixed_local"][fmask],
                                           tf[idx][fmask], w[fmask])
+                pm = fmask & (tplan[idx] >= 0)
+                if pm.any():
+                    loss += 0.3 * weighted_ce(out["plan"][pm], tplan[idx][pm],
+                                              w[pm])
+                    loss += 0.15 * weighted_ce(out["plan_local"][pm],
+                                               tplan[idx][pm], w[pm])
             pmask = ~fmask
             if pmask.any():
                 loss += weighted_ce(out["pattern"][pmask], tp[idx][pmask],
@@ -446,11 +486,13 @@ def main() -> int:
         with torch.no_grad():
             raw = model(eval_x, eval_len)
         out = {key: raw[key] + raw[key + "_local"]
-               for key in ["mode", "fixed", "pattern", *VOCAB]}
+               for key in ["mode", "fixed", "pattern", "plan", *VOCAB]}
         n_real = len(eval_real)
         mode_pred = out["mode"].argmax(1)
         fixed_pred = out["fixed"].argmax(1)
         real_mode = (mode_pred[:n_real] == 1).float().mean().item()
+        plan_acc = (out["plan"].argmax(1)[:n_real] == eplan[:n_real]) \
+            .float().mean().item()
         beat_acc = 0.0
         for i, (_, gid, beat) in enumerate(eval_real):
             if int(mode_pred[i]) != 1:
@@ -476,9 +518,10 @@ def main() -> int:
                     for name in FIELDS[p]}
             exact += int(PATTERN_TEMPLATE[p].format(**vals) == row["text"])
         synth_exact = exact / max(1, min(2000, len(synth_eval)))
-        print(f"epoch {epoch}: 真实模式 {real_mode:.3f} beat {beat_acc:.3f} | "
-              f"合成模式 {synth_mode_acc:.3f} pattern {pattern_acc:.3f} "
-              f"slot {slot_acc:.3f} exact {synth_exact:.3f} "
+        print(f"epoch {epoch}: 真实模式 {real_mode:.3f} beat {beat_acc:.3f} "
+              f"plan {plan_acc:.3f} | 合成模式 {synth_mode_acc:.3f} "
+              f"pattern {pattern_acc:.3f} slot {slot_acc:.3f} "
+              f"exact {synth_exact:.3f} "
               f"loss {total/max(1,step+1):.3f} "
               f"{time.perf_counter()-start:.1f}s", flush=True)
 
@@ -516,6 +559,7 @@ def main() -> int:
               "synth_per_row": args.synth_per_row, "hidden": args.hidden,
               "real_weight": args.real_weight,
               "real_mode": real_mode, "real_beat": beat_acc,
+              "plan_acc": plan_acc,
               "synth_mode": synth_mode_acc, "pattern_acc": pattern_acc,
               "slot_acc": slot_acc, "synth_exact": synth_exact}
     with open(REPORT, "w", encoding="utf-8") as fh:

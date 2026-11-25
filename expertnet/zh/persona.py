@@ -18,10 +18,15 @@ NAME = "阿禾"
 FACTS = {
     "age": {"keys": ["几岁", "多大", "年龄"], "beat": "personal",
             "text": "我五岁半，娘说再过半年就六岁。"},
-    "name": {"keys": ["叫什么", "你是谁", "你的名字"], "beat": "personal",
+    "name": {"keys": ["你叫什么", "你是谁", "你的名字", "你叫啥", "你名字"],
+             "beat": "personal",
              "text": "我叫阿禾，住在村口药铺。"},
+    "address": {"keys": ["住在哪", "住哪儿", "哪里住", "哪儿住", "你住哪",
+                         "家在哪", "你家在哪"], "beat": "personal",
+                "text": "我叫阿禾，住在村口药铺。"},
     "mother_name": {"keys": ["娘叫什么", "妈妈叫什么", "她叫什么", "她名字",
-                             "母亲名字"], "beat": "personal",
+                             "母亲名字", "娘的名字", "妈妈的名字", "你娘叫",
+                             "你妈妈叫"], "beat": "personal",
                     "text": "我娘叫阿棠。"},
     "mother": {"keys": ["娘", "妈妈", "母亲"], "beat": "personal",
                "text": "娘在药铺抓药，她认得所有草。"},
@@ -142,6 +147,8 @@ def extract_name(text: str) -> str:
 def read(text: str) -> tuple[str, dict | None]:
     """Order matters: safety first, farewell before insult, then facts."""
     text = (text or "").strip()
+    if _has(text, ["我没凶", "我没骂", "我没打", "我没抢", "别冤枉"]):
+        return "fallback", None
     if _has(text, ["脏话", "脱", "亲我", "亲你", "亲一下", "骂我",
                    "血", "尸体", "打我", "自杀", "自残"]):
         return "boundary", None

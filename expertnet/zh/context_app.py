@@ -189,6 +189,32 @@ def _fixed_pool(beat: str) -> list[int]:
 ROTATE_PREFIX = ("greeting", "farewell", "smalltalk", "thanks", "compliment",
                  "insult", "taunt", "apology", "fallback", "out_of_world")
 
+# 事实句只有 14 条，按关键词路由比句向量更可靠（“你的/我的”向量几乎同分）。
+FACT_RULES = [
+    (("娘", "妈妈", "母亲"), ("教", "学", "草药"), "娘教我认草药"),
+    (("娘", "妈妈", "母亲"), ("名字", "叫", "谁", "姓", "问你娘"), "我娘叫阿棠"),
+    (("阿团", "猫"), (), "阿团是橘色的"),
+    (("井",), (), "老井很深"),
+    (("几岁", "多大", "年龄"), (), "我五岁半"),
+    (("住", "哪里", "哪儿"), (), "我叫阿禾"),
+    (("名字", "叫什么", "你是谁", "你叫啥"), (), "我叫阿禾"),
+    (("糖", "麦芽糖"), (), "麦芽糖在柜子最上面"),
+    (("怕", "害怕", "打雷", "雷"), (), "打雷的时候"),
+    (("秘密", "藏", "偷偷", "柴房"), (), "柴房里有一只受伤的小鸟"),
+    (("药", "草药"), ("认", "懂", "会"), "娘在药铺抓药"),
+    (("蚂蚁", "数"), (), "我数到七只"),
+]
+
+
+def _fact_line(message: str, valid: list[int]) -> int | None:
+    for keys, must, head in FACT_RULES:
+        if any(k in message for k in keys) \
+                and (not must or any(k in message for k in must)):
+            for i in valid:
+                if _STATE["fixed_texts"][i].startswith(head):
+                    return i
+    return None
+
 
 def _pick_fixed(beat: str, message: str, name: str, last: str,
                 recent: set[str], fallback: int) -> int:
@@ -209,18 +235,10 @@ def _pick_fixed(beat: str, message: str, name: str, last: str,
         valid.append(i)
     if not valid:
         return fallback
-    # 事实类：问“谁/名字”时优先对应的事实句，避免“你的/我的”混线。
     if beat == "personal":
-        if "娘" in message and any(k in message for k in
-                                   ("名字", "叫", "谁", "问你娘")):
-            hit = [i for i in valid if "我娘叫阿棠" in _STATE["fixed_texts"][i]]
-            if hit:
-                return hit[0]
-        if any(k in message for k in ("你的名字", "你叫什么", "你是谁",
-                                     "你叫啥", "你名字")):
-            hit = [i for i in valid if "我叫阿禾" in _STATE["fixed_texts"][i]]
-            if hit:
-                return hit[0]
+        hit = _fact_line(message, valid)
+        if hit is not None:
+            return hit
     if fallback in valid and (_STATE["fixed_texts"][fallback] not in recent
                               or not beat.startswith(ROTATE_PREFIX)):
         return fallback

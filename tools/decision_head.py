@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import random
@@ -44,6 +45,11 @@ def state_vectors(enc, contexts, cache="expertnet/zh/decision_states.pt"):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=8)
+    parser.add_argument("--k", type=int, default=8)
+    args = parser.parse_args()
+    epochs, k = args.epochs, args.k
     torch.manual_seed(7)
     random.seed(7)
     _, fixed = load_rows(EX, 1, 31)
@@ -87,14 +93,15 @@ def main():
     ty = torch.tensor([pos[r[1]] for r in test], device="cuda")
 
     rng = random.Random(3)
-    options = torch.zeros(len(train), 8, dtype=torch.long)
+    others = {beat: [j for j in range(len(valid)) if opt_beats[j] != beat]
+              for beat in same}
+    options = torch.zeros(len(train), k, dtype=torch.long)
     for i, row in enumerate(train):
         gold = pos[row[1]]
         beat = opt_beats[gold]
         pool = [j for j in same[beat] if j != gold]
-        same_neg = rng.sample(pool, min(3, len(pool)))
-        other = [j for j in range(len(valid)) if opt_beats[j] != beat]
-        neg = same_neg + rng.sample(other, 8 - 1 - len(same_neg))
+        same_neg = rng.sample(pool, min(3, len(pool), k - 1))
+        neg = same_neg + rng.sample(others[beat], k - 1 - len(same_neg))
         choices = [gold] + neg
         rng.shuffle(choices)
         options[i] = torch.tensor(choices)
@@ -103,13 +110,13 @@ def main():
     proj = nn.Linear(opt.shape[1], state.shape[1], bias=False).cuda()
     optim = torch.optim.AdamW(proj.parameters(), lr=1e-3, weight_decay=1e-4)
 
-    epochs = 8
     for epoch in range(epochs):
         perm = torch.randperm(len(train), device="cuda")
         total = 0.0
         for step, i in enumerate(range(0, len(perm), 256)):
             idx = perm[i:i + 256]
-            table = proj(opt)[options[idx]]
+            flat = options[idx].reshape(-1)
+            table = proj(opt[flat]).view(len(idx), -1, state.shape[1])
             logits = torch.einsum("bd,bkd->bk", state[idx], table)
             gold = (options[idx] == y[idx].unsqueeze(1)).float().argmax(1)
             loss = F.cross_entropy(logits, gold)

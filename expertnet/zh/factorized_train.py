@@ -28,7 +28,9 @@ from .persona import format_line, new_state, teacher_turn
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 LOCAL_ENC = os.path.join(ROOT, "models", "bge-small-zh-v1.5")
-ENC_MODEL = LOCAL_ENC if os.path.isdir(LOCAL_ENC) else "BAAI/bge-small-zh-v1.5"
+ENC_MODEL = os.environ.get(
+    "ENC_MODEL", LOCAL_ENC if os.path.isdir(LOCAL_ENC)
+    else "BAAI/bge-small-zh-v1.5")
 DEFAULT_MODEL = os.path.join(HERE, "factorized.pt")
 REPORT = os.path.join(HERE, "factorized_report.json")
 
@@ -179,8 +181,29 @@ def canonical_text(pool: list[str]) -> str:
     return min(candidates, key=score)
 
 
+AUG_PREFIX = ["", "阿禾，", "喂，", "那个……", "我说，", "小阿禾，"]
+AUG_SUFFIX = ["", "呀", "啊", "哦", "呢"]
+AUG_SYN = [("娘", "妈妈"), ("名字", "称呼"), ("走", "离开"), ("笨", "蠢"),
+           ("生气", "不高兴"), ("糖", "糖果"), ("看", "瞧"), ("说", "讲"),
+           ("怕", "害怕"), ("喜欢", "爱")]
+
+
+def augment(text: str, rng: random.Random, rate: float) -> str:
+    """标签不变的说法扰动：加称呼/语气词、换同义词，教模型别被表面词带偏。"""
+    if rate <= 0 or rng.random() >= rate:
+        return text
+    if rng.random() < 0.5:
+        for old, new in AUG_SYN:
+            if old in text:
+                text = text.replace(old, new, 1)
+                break
+    body = text.rstrip("。？！")
+    return f"{rng.choice(AUG_PREFIX)}{body}{rng.choice(AUG_SUFFIX)}。"
+
+
 def real_samples(fixed_index: dict[str, int], canon: dict[str, str], count: int,
-                 seed: int, turns: int, heldout: bool = False):
+                 seed: int, turns: int, heldout: bool = False,
+                 augment_rate: float = 0.0):
     """教师驱动的真实对话：标签直接是固定句 ID，不再映射到组合行。"""
     phrases = HELDOUT if heldout else SEEDS
     rng = random.Random(seed)
@@ -191,13 +214,14 @@ def real_samples(fixed_index: dict[str, int], canon: dict[str, str], count: int,
         for _ in range(rng.randint(6, 12)):
             intent = rng.choice(list(phrases))
             player = rng.choice(phrases[intent])
-            context = format_line_context(history, player, turns)
+            surface = augment(player, rng, augment_rate)
+            context = format_line_context(history, surface, turns)
             tpl, beat = teacher_turn(player, state)
             target = tpl if tpl in fixed_index else canon.get(beat)
             if target is None or target not in fixed_index:
                 continue
             samples.append((context, fixed_index[target], beat))
-            history.append((player, format_line(target, state)))
+            history.append((surface, format_line(target, state)))
             if len(samples) >= count:
                 break
     return samples
@@ -284,6 +308,8 @@ def main() -> int:
     parser.add_argument("--history-rate", type=float, default=0.5)
     parser.add_argument("--real-weight", type=float, default=2.5,
                         help="真实对话样本的损失权重，平衡合成槽位数据")
+    parser.add_argument("--augment", type=float, default=0.0,
+                        help="标签不变的说法扰动比例（称呼/语气词/同义词）")
     parser.add_argument("--epochs", type=int, default=6)
     parser.add_argument("--batch", type=int, default=256)
     parser.add_argument("--hidden", type=int, default=512)
@@ -312,7 +338,8 @@ def main() -> int:
 
     enc = HFSentenceEncoder(ENC_MODEL, pooling="cls", max_length=160,
                             device=device)
-    train_real = real_samples(fixed_index, canon, args.samples, args.seed, 4)
+    train_real = real_samples(fixed_index, canon, args.samples, args.seed, 4,
+                              augment_rate=args.augment)
     eval_real = real_samples(fixed_index, canon, args.eval_samples,
                              args.seed + 1000, 4, heldout=True)
 
@@ -330,7 +357,8 @@ def main() -> int:
     print(f"真实 {len(train_real)}（留存 {len(eval_real)}）+ 合成 "
           f"{len(synth_train)}，合成评测 {len(synth_eval)}", flush=True)
 
-    tag = f"{args.samples}_{args.row_limit}_{args.synth_per_row}_{args.seed}"
+    tag = (f"{args.samples}_{args.row_limit}_{args.synth_per_row}_"
+           f"{args.seed}_{args.augment}")
     train_contexts = ([row[0] for row in train_real]
                       + [context for context, _ in synth_train])
     train_x, train_len = line_tensor(

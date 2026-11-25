@@ -1,0 +1,8 @@
+{
+ "train": 57253,
+ "test": 2851,
+ "baseline_exact": 0.0066643282771110535,
+ "baseline_beat": 0.2676253945983865,
+ "decision_exact": 0.27569273114204407,
+ "decision_beat": 0.45106980007015085
+}

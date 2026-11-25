@@ -35,7 +35,11 @@ MAX_TURNS = 4
 _LOCK = threading.Lock()
 _STATE = {"ready": False, "error": "", "backend": None, "model": None,
           "enc": None, "texts": None, "beats": None, "fixed_texts": None,
-          "fixed_beats": None}
+          "fixed_beats": None, "decision": None, "decision_table": None,
+          "fixed_vec": None, "decision_ready": False}
+
+DECISION_CKPT = os.environ.get(
+    "DECISION_CKPT", os.path.join(HERE, "decision_head.pt"))
 
 
 def ensure():
@@ -49,9 +53,14 @@ def ensure():
                                   weights_only=False)
                 model = FactorizedNet(**ckpt["config"]).eval()
                 model.load_state_dict(ckpt["state"])
+                decision = None
+                if os.path.exists(DECISION_CKPT):
+                    decision = torch.load(DECISION_CKPT, map_location="cpu",
+                                          weights_only=False)["state"]
                 _STATE.update(ready=True, backend="factorized", model=model,
                               enc=enc, fixed_texts=ckpt["fixed_texts"],
-                              fixed_beats=ckpt.get("fixed_beats"))
+                              fixed_beats=ckpt.get("fixed_beats"),
+                              decision=decision)
                 return True
             ckpt = torch.load(CKPT, map_location="cpu", weights_only=False)
             cfg = dict(ckpt["config"])
@@ -73,6 +82,9 @@ def warmup():
         texts = _STATE.get("fixed_texts") or []
         for i in range(0, len(texts), 256):
             _STATE["enc"].embed(texts[i:i + 256], batch=128)
+        if _STATE.get("decision") is not None:
+            _decision_table()
+            _STATE["decision_ready"] = True
     threading.Thread(target=run, daemon=True).start()
 
 
@@ -216,6 +228,54 @@ def _fact_line(message: str, valid: list[int]) -> int | None:
     return None
 
 
+def _decision_table():
+    """把 6971 条固定句投影到决策空间，只算一次。"""
+    table = _STATE.get("decision_table")
+    if table is not None:
+        return table
+    weight = _STATE["decision"]["weight"]
+    vec = _STATE["fixed_vec"]
+    if vec is None:
+        vec = _STATE["enc"].embed(_STATE["fixed_texts"])
+        _STATE["fixed_vec"] = vec
+    table = vec @ weight.T
+    _STATE["decision_table"] = table
+    return table
+
+
+def _decision_pick(beat: str, vecs, message: str, name: str, last: str,
+                   recent: set[str]) -> int | None:
+    """小决策头：在预测 beat 内按“上下文 state × 候选句”打分。"""
+    if not _STATE.get("decision_ready"):
+        return None
+    pool = []
+    for i in _fixed_pool(beat):
+        text = _STATE["fixed_texts"][i]
+        if "{player_name}" in text and not name:
+            continue
+        if "{last_player}" in text and not last:
+            continue
+        pool.append(i)
+    if not pool:
+        return None
+    if beat == "personal":
+        hit = _fact_line(message, pool)
+        if hit is not None:
+            return hit
+    last_vec = vecs[-1]
+    hist = vecs[:-1].mean(0) if vecs.size(0) > 1 else last_vec
+    state = torch.cat([last_vec, hist])
+    table = _decision_table()
+    scores = table[torch.tensor(pool)] @ state
+    order = torch.argsort(scores, descending=True).tolist()
+    if not beat.startswith(ROTATE_PREFIX):
+        return pool[order[0]]
+    for j in order[:3]:
+        if _STATE["fixed_texts"][pool[j]] not in recent:
+            return pool[j]
+    return pool[order[0]]
+
+
 def _pick_fixed(beat: str, message: str, name: str, last: str,
                 recent: set[str], fallback: int) -> int:
     """优先用模型自己选的那句；只有在“同类说法都成立”的 beat 里才换一句。
@@ -259,7 +319,8 @@ def _answer_factorized(history: list[tuple[str, str]], message: str):
         lines.append(f"阿禾：{prev_reply}")
     lines.append(f"玩家：{message}")
     lines = lines[-MAX_LINES:]
-    vec = _STATE["enc"].embed(lines).unsqueeze(0)
+    vecs = _STATE["enc"].embed(lines)
+    vec = vecs.unsqueeze(0)
     lengths = torch.tensor([len(lines)])
     with torch.no_grad():
         raw = _STATE["model"](vec, lengths)
@@ -273,7 +334,11 @@ def _answer_factorized(history: list[tuple[str, str]], message: str):
         beat = (_STATE["fixed_beats"][best]
                 if _STATE.get("fixed_beats") else "固定句")
         recent = {reply for _, reply in history[-8:]}
-        idx = _pick_fixed(beat, message, name, last, recent, best)
+        idx = None
+        if _STATE.get("decision") is not None:
+            idx = _decision_pick(beat, vecs, message, name, last, recent)
+        if idx is None:
+            idx = _pick_fixed(beat, message, name, last, recent, best)
         text = _STATE["fixed_texts"][idx]
         if ("{player_name}" in text and not name) \
                 or ("{last_player}" in text and not last):

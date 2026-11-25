@@ -12,10 +12,15 @@
 > - 架构：BGE 逐行编码 → GRU 读上下文；另一路只读最后一句，推理时两路 logits 相加。
 > - 训练：12 万教师对话（真实说法直接监督固定句）+ 10.8 万合成槽位问句；
 >   留存换说法的行为准确率 **0.68**，模式 0.99，合成组合整句 0.999。
-> - 推理：先定 beat，再在同 beat 固定句里按 BGE 语义相似度挑一句；近 8 轮重复 4/100。
->   `warmup()` 会在后台预编码全部固定句，首句延迟从 ~2.8s 降到缓存后的 ~0.05s。
+> - 推理：先定 beat，再在同 beat 固定句里按 **小决策头** 打分（BGE 状态 × 候选句，
+>   `decision_head.pt`）；决策头未就绪时退回 beat 内启发式。事实类仍由关键词规则兜底。
+>   `warmup()` 会在后台预编码全部固定句并构建决策表，首句延迟从 ~2.8s 降到 ~0.05s。
+> - 决策头离线结果：全表直选 beat 0.45；**已定 beat 内选句 exact 0.55**，同条件余弦仅 0.14。
+> - 说法扰动（`--augment 0.5`：称呼/语气词/同义词，标签不变）把留存行为准确率
+>   从 0.68 提到 **0.695**。
 > - 复现：`python -m expertnet.zh.exhaustive --out expertnet/zh/exhaustive.jsonl --fixed-bank 265`
->   然后 `python -m expertnet.zh.factorized_train --device cuda --samples 120000 --row-limit 120000`。
+>   然后 `python -m expertnet.zh.factorized_train --device cuda --samples 120000 --row-limit 120000 --augment 0.5`，
+>   再跑 `tools/decision_head.py` 训练决策头。
 > - 局限：说话人没给名字时问“还记得我吗”会走到 memory_quote；口语换说法覆盖率仍靠 seed。
 
 - 角色：**阿禾**，五岁半，村口药铺家的孩子。只认识药铺、药园、老井、橘猫阿团和娘。

@@ -122,6 +122,7 @@ def metrics(chosen, test, beats, texts, dump=0):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--closure", action="store_true")
+    parser.add_argument("--ckpt", default=os.path.join(HERE, "factorized_v3_deploy.pt"))
     parser.add_argument("--threshold", type=float, default=0.86)
     parser.add_argument("--dump", type=int, default=0)
     args = parser.parse_args()
@@ -130,7 +131,7 @@ def main():
 
     enc = HFSentenceEncoder("models/bge-small-zh-v1.5", pooling="cls",
                             max_length=160, device="cuda")
-    ckpt = torch.load(os.path.join(HERE, "factorized_v3_deploy.pt"),
+    ckpt = torch.load(args.ckpt,
                       map_location="cuda", weights_only=False)
     model = FactorizedNet(**ckpt["config"]).cuda().eval()
     model.load_state_dict(ckpt["state"])
@@ -180,13 +181,13 @@ def main():
     score = torch.log(beatp[:, beat_col] + 1e-8) + 0.5 * z
     chosen = [valid[p] for p in score.argmax(1).tolist()]
     # 与部署一致：事实关键词命中且 beat 属于模糊类时，规则优先。
-    fact_beats = {"personal", "out_of_world", "fallback", "name_unknown",
-                  "smalltalk_weather", "smalltalk_how", "lore", "greeting",
-                  "greeting_hurt", "name_recall"}
+    fact_block = {"gift", "threat", "insult", "apology", "apology_meta",
+                  "farewell", "farewell_hurt", "boundary", "secret_denied",
+                  "secret", "trade", "promise", "name_saved", "taunt"}
     metas = [parse_context(r[0]) for r in test]
     fixed_chosen = []
     for idx, meta in zip(chosen, metas):
-        if beats[idx] in fact_beats:
+        if beats[idx] not in fact_block:
             head = fact_head(meta[0])
             if head:
                 hit = next((j for j in valid if texts[j].startswith(head)), None)

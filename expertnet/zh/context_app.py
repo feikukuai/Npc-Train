@@ -204,6 +204,11 @@ ROTATE_PREFIX = ("greeting", "farewell", "smalltalk", "thanks", "compliment",
 # 事实句只有 14 条，按关键词路由比句向量更可靠（“你的/我的”向量几乎同分）。
 # 命中规则时，即使 beat 分类跑偏（闲聊/未知/fallback）也优先答事实。
 FACT_RULES = [
+    (("阿团是什么", "阿团是啥", "什么动物", "猫是什么", "阿团是猫吗"), (),
+     "阿团是猫呀"),
+    (("认识阿团", "认识猫吗", "认识那只猫", "见过阿团"), (), "认识呀，阿团天天"),
+    (("阿团在哪", "猫在哪", "阿团在哪里", "猫在哪里"), (),
+     "阿团在柜台下面睡觉"),
     (("娘", "妈妈", "母亲"), ("教", "学", "草药"), "娘教我认草药"),
     (("娘", "妈妈", "母亲"), ("名字", "叫", "谁", "姓", "问你娘"), "我娘叫阿棠"),
     (("阿团", "猫"), (), "阿团是橘色的"),
@@ -218,9 +223,9 @@ FACT_RULES = [
     (("药", "草药"), ("认", "懂", "会"), "娘在药铺抓药"),
     (("蚂蚁", "数"), (), "我数到七只"),
 ]
-FACT_BEATS = {"personal", "out_of_world", "fallback", "name_unknown",
-              "smalltalk_weather", "smalltalk_how", "lore", "greeting",
-              "greeting_hurt", "name_recall"}
+FACT_BLOCK = {"gift", "threat", "insult", "apology", "apology_meta",
+              "farewell", "farewell_hurt", "boundary", "secret_denied",
+              "secret", "trade", "promise", "name_saved", "taunt"}
 
 
 def _fact_line(message: str, valid: list[int]) -> int | None:
@@ -365,7 +370,7 @@ def _answer_factorized(history: list[tuple[str, str]], message: str):
         recent = {reply for _, reply in history[-8:]}
         idx = None
         # 规则优先：事实问句即使在启动初期（决策表未就绪）也要答对。
-        if beat in FACT_BEATS:
+        if beat not in FACT_BLOCK:
             valid_ids = torch.nonzero(_beat_tables()[3]).flatten().tolist()
             idx = _fact_line(message, valid_ids)
         if idx is None:

@@ -178,12 +178,32 @@ def _answer_cluster(history: list[tuple[str, str]], message: str):
     return reply, status, [beat, others]
 
 
+# 口语/方言归一化：只求“意思对”，不追求覆盖所有说法。
+NORMALIZE = [
+    ("咋回事", "怎么回事"), ("咋样", "怎么样"), ("咋办", "怎么办"),
+    ("咋", "怎么"), ("啥时候", "什么时候"), ("啥玩意儿", "什么东西"),
+    ("啥", "什么"), ("俺们", "我们"), ("俺", "我"), ("咱", "我"),
+    ("晓得", "知道"), ("瞅", "看"), ("瞧", "看"), ("搁", "在"),
+    ("干啥", "做什么"), ("干嘛", "做什么"), ("弄啥", "做什么"),
+    ("整啥", "做什么"), ("整", "做"), ("弄", "做"),
+    ("甭", "不用"), ("别介", "别"), ("贼", "很"), ("倍儿", "很"),
+    ("老好", "很好"), ("得劲", "舒服"), ("唠嗑", "聊天"),
+    ("中不中", "行不行"), ("啥呀", "什么"), ("哈", ""),
+]
+
+
+def normalize(text: str) -> str:
+    for old, new in NORMALIZE:
+        text = text.replace(old, new)
+    return text
+
+
 def _name_and_last(history, message):
-    name = extract_name(message)
+    name = extract_name(normalize(message))
     for player, _ in reversed(history):
         if name:
             break
-        name = extract_name(player)
+        name = extract_name(normalize(player))
     last = history[-1][0] if history else ""
     return name, last
 
@@ -211,10 +231,11 @@ FACT_RULES = [
     (("有猫吗", "养猫吗", "家里有猫"), (), "有呀，阿团"),
     (("阿团在哪", "猫在哪", "阿团在哪里", "猫在哪里"), (),
      "阿团在柜台下面睡觉"),
+    (("怎么了", "咋了", "怎么啦"), (), "我很好，就是有点饿"),
     (("你知道什么", "你会什么", "你懂什么", "你都知道什么"), (), "我知道药铺"),
-    (("娘", "妈妈", "母亲"), ("教", "学", "草药"), "娘教我认草药"),
-    (("娘", "妈妈", "母亲"), ("名字", "叫", "谁", "姓", "问你娘"), "我娘叫阿棠"),
-    (("娘", "妈妈", "母亲"), ("做什么", "干什么", "做啥"), "娘在药铺抓药"),
+    (("娘", "妈", "母亲"), ("教", "学", "草药"), "娘教我认草药"),
+    (("娘", "妈", "母亲"), ("名字", "叫", "谁", "姓", "问你娘"), "我娘叫阿棠"),
+    (("娘", "妈", "母亲"), ("做什么", "干什么", "做啥"), "娘在药铺抓药"),
     (("阿团", "猫"), (), "阿团是橘色的"),
     (("药园", "草药园"), (), "屋后是草药园"),
     (("井",), (), "老井很深"),
@@ -233,7 +254,7 @@ FACT_BLOCK = {"gift", "threat", "insult", "apology", "apology_meta",
 SECRET_KEYS = ("秘密", "藏", "偷偷", "柴房")
 # 表里没有的实体/话题，宁可承认不知道，也不要乱答自我介绍。
 UNKNOWN_KEYS = ("穿", "衣服", "村子", "村外", "山那边", "河", "天上", "蓝",
-                "镇子", "远处")
+                "镇子", "远处", "玩意儿")
 
 
 def _fact_line(message: str, valid: list[int]) -> int | None:
@@ -362,6 +383,8 @@ def _pick_fixed(beat: str, message: str, name: str, last: str,
 
 
 def _answer_factorized(history: list[tuple[str, str]], message: str):
+    # 口语先归一化成标准说法，规则和模型都吃归一化后的句子。
+    message = normalize(message)
     # 逐行编码：最后一句玩家话不会被长历史淹没。
     lines = []
     for prev_player, prev_reply in history[-MAX_TURNS:]:

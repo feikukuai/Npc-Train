@@ -182,17 +182,26 @@ def main():
     chosen = [valid[p] for p in score.argmax(1).tolist()]
     # 与部署一致：事实关键词命中且 beat 属于模糊类时，规则优先。
     fact_block = {"gift", "threat", "insult", "apology", "apology_meta",
-                  "farewell", "farewell_hurt", "boundary", "secret_denied",
-                  "secret", "trade", "promise", "name_saved", "taunt"}
+                  "farewell", "farewell_hurt", "boundary", "trade", "promise",
+                  "name_saved", "taunt"}
+    secret_keys = ("秘密", "藏", "偷偷", "柴房")
+    unknown_keys = ("穿", "衣服", "村子", "村外", "山那边", "河", "天上", "蓝",
+                    "镇子", "远处")
+    pool_oow = [j for j in valid if beats[j] == "out_of_world"]
     metas = [parse_context(r[0]) for r in test]
     fixed_chosen = []
     for idx, meta in zip(chosen, metas):
-        if beats[idx] not in fact_block:
-            head = fact_head(meta[0])
+        message = meta[0]
+        secret_ask = beats[idx] in ("secret_denied", "secret") and \
+            any(k in message for k in secret_keys)
+        if beats[idx] not in fact_block and not secret_ask:
+            head = fact_head(message)
             if head:
                 hit = next((j for j in valid if texts[j].startswith(head)), None)
                 if hit is not None:
                     idx = hit
+        elif any(k in message for k in unknown_keys) and pool_oow:
+            idx = pool_oow[0]
         fixed_chosen.append(idx)
     chosen = fixed_chosen
     row = metrics(chosen, test, beats, texts, dump=args.dump)

@@ -205,27 +205,35 @@ ROTATE_PREFIX = ("greeting", "farewell", "smalltalk", "thanks", "compliment",
 # 命中规则时，即使 beat 分类跑偏（闲聊/未知/fallback）也优先答事实。
 FACT_RULES = [
     (("阿团是什么", "阿团是啥", "什么动物", "猫是什么", "阿团是猫吗"), (),
-     "阿团是猫呀"),
-    (("认识阿团", "认识猫吗", "认识那只猫", "见过阿团"), (), "认识呀，阿团天天"),
+     "阿团是猫"),
+    (("认识阿团", "知道阿团", "认识猫吗", "认识那只猫", "见过阿团"), (),
+     "认识呀，阿团"),
+    (("有猫吗", "养猫吗", "家里有猫"), (), "有呀，阿团"),
     (("阿团在哪", "猫在哪", "阿团在哪里", "猫在哪里"), (),
      "阿团在柜台下面睡觉"),
+    (("你知道什么", "你会什么", "你懂什么", "你都知道什么"), (), "我知道药铺"),
     (("娘", "妈妈", "母亲"), ("教", "学", "草药"), "娘教我认草药"),
     (("娘", "妈妈", "母亲"), ("名字", "叫", "谁", "姓", "问你娘"), "我娘叫阿棠"),
+    (("娘", "妈妈", "母亲"), ("做什么", "干什么", "做啥"), "娘在药铺抓药"),
     (("阿团", "猫"), (), "阿团是橘色的"),
     (("药园", "草药园"), (), "屋后是草药园"),
     (("井",), (), "老井很深"),
     (("几岁", "多大", "年龄"), (), "我五岁半"),
     (("住",), ("哪", "哪里", "哪儿"), "我叫阿禾"),
     (("你叫什么", "你是谁", "你叫啥", "你的名字"), (), "我叫阿禾"),
-    (("糖", "麦芽糖"), ("在哪", "哪儿", "哪里", "有糖", "糖呢", "还有"), "麦芽糖在柜子最上面"),
-    (("怕", "害怕", "打雷", "雷"), (), "打雷的时候"),
-    (("秘密", "藏", "偷偷", "柴房"), (), "柴房里有一只受伤的小鸟"),
+    (("糖", "麦芽糖"), ("在哪", "哪儿", "哪里", "有糖", "糖呢", "还有"), "麦芽糖在柜子上"),
+    (("打雷", "雷"), (), "打雷我钻桌底"),
+    (("秘密", "藏", "偷偷", "柴房"), (), "柴房有只小鸟"),
     (("药", "草药"), ("认", "懂", "会"), "娘在药铺抓药"),
     (("蚂蚁", "数"), (), "我数到七只"),
 ]
 FACT_BLOCK = {"gift", "threat", "insult", "apology", "apology_meta",
-              "farewell", "farewell_hurt", "boundary", "secret_denied",
-              "secret", "trade", "promise", "name_saved", "taunt"}
+              "farewell", "farewell_hurt", "boundary", "trade", "promise",
+              "name_saved", "taunt"}
+SECRET_KEYS = ("秘密", "藏", "偷偷", "柴房")
+# 表里没有的实体/话题，宁可承认不知道，也不要乱答自我介绍。
+UNKNOWN_KEYS = ("穿", "衣服", "村子", "村外", "山那边", "河", "天上", "蓝",
+                "镇子", "远处")
 
 
 def _fact_line(message: str, valid: list[int]) -> int | None:
@@ -266,6 +274,14 @@ def _beat_tables():
     tables = (names, index, beat_of, mask)
     _STATE["beat_tables"] = tables
     return tables
+
+
+def _pick_out_of_world(recent: set[str]) -> int | None:
+    pool = _fixed_pool("out_of_world")
+    for i in pool:
+        if _STATE["fixed_texts"][i] not in recent:
+            return i
+    return pool[0] if pool else None
 
 
 def _name_pick(message: str, name: str) -> int | None:
@@ -370,9 +386,13 @@ def _answer_factorized(history: list[tuple[str, str]], message: str):
         recent = {reply for _, reply in history[-8:]}
         idx = None
         # 规则优先：事实问句即使在启动初期（决策表未就绪）也要答对。
-        if beat not in FACT_BLOCK:
+        secret_ask = beat in ("secret_denied", "secret") and \
+            any(key in message for key in SECRET_KEYS)
+        if beat not in FACT_BLOCK and not secret_ask:
             valid_ids = torch.nonzero(_beat_tables()[3]).flatten().tolist()
             idx = _fact_line(message, valid_ids)
+        if idx is None and any(key in message for key in UNKNOWN_KEYS):
+            idx = _pick_out_of_world(recent)
         if idx is None:
             idx = _name_pick(message, name)
         if idx is None and _STATE.get("decision") is not None:

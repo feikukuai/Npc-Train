@@ -7,48 +7,40 @@
 
 > **2026-11-25 主线已切到因子化模型**：`expertnet/zh/factorized_train.py` 训练、
 > `context_app.py` 默认 `CHAT_BACKEND=factorized`，3337 语义簇只作紧急回退。
-> - 输出表：`exhaustive.py --fixed-bank 265` → **336,704 句**（6,974 固定句 + 组合句）；
->   26 个 beat 每个约 260 条，按长度排序后等步长抽样，覆盖不同句法框架。
+> - 输出表：**短句版**（`tools/build_short_bank.py`）→ **330,383 句**
+>   （组合句 329,730 + 固定句 653），**全部 ≤10 字**；组合句仍是 pattern+slots。
+>   长句版 336,704 句保留在 `exhaustive_6974.jsonl` 备份，可回滚。
 > - 架构：BGE 逐行编码 → GRU 读上下文；另一路只读最后一句，推理时两路 logits 相加。
 > - 训练：12 万教师对话（真实说法直接监督固定句）+ 10.8 万合成槽位问句；
->   留存换说法的行为准确率 **0.68**，模式 0.99，合成组合整句 0.999。
+>   短句版留存行为准确率 **0.72**（长句版 0.70），模式 0.99，合成整句 0.999。
 > - 推理：**beat 概率 + 小决策头全局集成**（`decision_head.pt`，α=0.5）后选句；
->   事实问句由关键词规则**先于模型**兜底（`FACT_BLOCK` 之外的 beat），问“我叫什么”
->   由 `_name_pick` 锁定名字句，问“你叫什么/阿团是什么/认识阿团吗/阿团在哪”走事实句。
-> - **评测口径（2026-11 起）**：`tools/quality_eval.py`，主指标是
->   beat **0.79** / 合法率 0.972 / 近 8 句重复 5.3% / 事实命中 **0.985** / 多样性 0.479；
->   exact 只作参考（0.44），**不要把它当智力指标**。
->   exact 的上限由教师决定的：`persona._pick` 是 `lines[turn % len]` 机械轮换，
->   而 context 只保留最近 4 轮，turn 丢失；30/31 个 beat 只有 2–3 种目标句。
->   把 turn one-hot 直接喂给决策头，exact 从 0.364 升到 0.533（12 epoch 仍在涨），
->   证明瓶颈是“轮次信息不可见”，不是模型容量。`tools/turn_probe.py` 可复现。
-> - **新表训练注意**：6,974 句固定表下，12 epoch 单模型 beat 0.650、24 epoch 0.637
->   （过拟合退化）；**6 epoch 最好（0.680，选句评测 beat 0.794）**，部署的是 v6
->   （`factorized_v6_deploy.pt`）。再重训优先 4–6 epoch 早停，别盲目加轮数。
-> - 试过但**没有收益**，不要重复：
->   ① GRPO 只更新决策头 proj（组采样 8、奖励含 beat/事实/重复/长度），exact 0.429→0.419；
->   ② 无标签规则 Bo-4 重排 0.377；
->   ③ cross-encoder 验证器（随机同 beat 负例 + BCE）Bo-8 0.280、listwise 对齐策略分布
->   后 Bo-8 0.344 / Bo-16 0.355（覆盖 0.766）——候选里有 gold，但验证器选不出来，
->   因为 gold 的一半决定因素（turn）不在输入里；
->   ④ 输入闭集化：最后一句先映射到 SEEDS 最近句（阈值 0.86 命中 50.8%），
->   beat 0.7997→0.7966，无收益；
->   ⑤ 用外部大模型裁判（DeepSeek-V4-Flash）给 300 条样本的贪心/4 候选打分：
->   贪心均分 6.19 → 候选最高 6.95，46% 样本有更优候选，39 条能救回；
->   但把 295 条标签蒸馏成本地小 cross-encoder（250 训练/45 验证）失败，
->   选句与裁判一致率 0.267，说明标签量不够、分数区分度低。要续做需 ≥1500 条 + 成对排序。
-> - 计划头（11 类）准确率 0.83，仅作辅助监督。
->   `warmup()` 会在后台预编码全部固定句并构建决策表，首句延迟从 ~2.8s 降到 ~0.05s。
-> - 决策头（`tools/decision_head.py --epochs 12 --k 24`，同 beat 难负例 9 个）：
->   全表直选 beat 0.62 / exact 0.35；已定 beat 内选句 exact 0.53。
-> - 说法扰动（`--augment 0.5`）+ 教师同义词/纠正规则 + 新增 seed，把留存行为准确率
->   从 0.68 提到 **0.703**；集成后 0.79。
-> - 复现：`python -m expertnet.zh.exhaustive --out expertnet/zh/exhaustive.jsonl --fixed-bank 265`
->   然后 `python -m expertnet.zh.factorized_train --device cuda --samples 120000 --row-limit 120000 --augment 0.5 --epochs 6`，
->   再跑 `tools/decision_head.py --epochs 12 --k 24` 训练决策头，
->   `tools/quality_eval.py --ckpt expertnet/zh/factorized_v6_deploy.pt` 出主指标。
-> - 局限：第一人称情绪（“我有点累”）还没有老师规则，会落到 fallback；秘密类在
->   信任不足时被规则拒答（评测里 2 条“失败”属于正确行为）。
+>   事实问句由关键词规则**先于模型**兜底（`FACT_BLOCK` 之外），问“我叫什么”由
+>   `_name_pick` 锁定名字句（短表保留了 `你叫{player_name}` 等短模板）。
+> - **评测口径**：`tools/quality_eval.py`，短句版（v10）beat **0.737** / 合法率 0.972 /
+>   近 8 句重复 6.3% / 事实命中 **1.0**（72 条明确事实问句）/ 多样性 0.410；
+>   exact 0.445 只作参考。长句版（v6）beat 0.794 / exact 0.437 / fact 0.985。
+> - **短句约束的代价**：固定句从 6,974 砍到 653，每个 beat 只剩 7–41 句，
+>   beat 从 0.79 降到 0.74。要回升就补短句（每 beat 30–50 条），而不是加 epoch。
+> - **必看坑**：改 `persona.py` / 句表后必须删 `expertnet/zh/fact_lines_*.npz` 和
+>   `decision_states*.pt` 再训练，否则复用旧上下文编码、目标错位，beat 会崩到 0.07
+>   （已踩过一次）。训练短句表 v8 时就是这个原因。
+> - 输入侧原型：`tools/build_input_bank.py` 生成 2,527 条 ≤10 字问句（主谓宾/主系表/
+>   处所/判断/主系表疑问）。检索映射实验：SEEDS 141 条 → 意图族 0.689；
+>   机械扩说法到 7,956 条仅 0.698（无收益）；说明要按“实体×属性”扩真实说法/模式，
+>   不是扩前后缀。≤5 字输入映射 0.734，6–10 字 0.619。
+>   模式表原型：`tools/build_patterns.py` → `patterns.csv`（58 模式 / 233 说法），
+>   但模板说法检索只有 0.659，需真实说法填充。
+> - 校验收紧：事实规则不再用“娘”这种单字宽匹配（“喊你娘啊”曾被误判成问工作）。
+> - 决策头（`tools/decision_head.py --epochs 12 --k 24`）：
+>   短表全表直选 beat 0.69 / exact 0.45；已定 beat 内选句 exact 0.53。
+> - 复现（短句版）：
+>   `python -m expertnet.zh.exhaustive --out expertnet/zh/exhaustive.jsonl --fixed-bank 265`
+>   → `python tools/build_short_bank.py` → `cp short_bank.jsonl exhaustive.jsonl`
+>   → 删缓存 → `python -m expertnet.zh.factorized_train --device cuda --samples 120000 --row-limit 120000 --augment 0.5 --epochs 4`
+>   → `python tools/decision_head.py --epochs 12 --k 24`
+>   → `python tools/quality_eval.py --ckpt expertnet/zh/factorized_v10_deploy.pt`。
+> - 局限：短句版事实句被压短（“娘在药铺抓药”），信息量少于长句；秘密类在信任
+>   不足时仍被规则拒答（正确行为）。
 
 - 角色：**阿禾**，五岁半，村口药铺家的孩子。只认识药铺、药园、老井、橘猫阿团和娘。
 - 输出：规则老师先定 **beat**，再从 **191,600 句**整句库里按上下文挑一句；
